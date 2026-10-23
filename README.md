@@ -1,6 +1,6 @@
 # Proyecto CUP: Dashboard CUP Chile
 
-Análisis de Datos e Inferencia Estadística (UDD, 2026-2) · Bastián Campos · Maximiliano Mella · Agustín Tapia
+Análisis de Datos e Inferencia Estadística (UDD, 2026-2) · Bastián Campos · Renato Infante · Agustín Tapia · Maximiliano Mella
 
 Cáncer de origen primario desconocido (CUP, CIE-10 C80.0) comparado con cinco cánceres metastásicos de primario conocido, usando los egresos hospitalarios GRD de FONASA 2019–2025 (60.816 egresos de adultos).
 
@@ -23,4 +23,4 @@ Cáncer de origen primario desconocido (CUP, CIE-10 C80.0) comparado con cinco c
 3. Para rehacer la base desde los `.txt` (por ejemplo, si se agrega un año), poner `REHACER_EXTRACCION = True` en la primera celda de código y ajustar `ANIOS`.
 
 ## Presentación
-`presentacion/Dashboard CUP Chile — Primer avance.pptx`: versión corta (13 diapositivas, unos 9 minutos) con un guion por diapositiva en las notas. La versión larga (23 diapositivas) quedó en `archivo/`. La misma versión corta está en https://claude.ai/artifact/Y8HbGrZkKDbu3Pn4kZqWbx (se descarga como .pptx o PDF desde *Share › Export*; para que otra persona abra el enlace, primero hay que compartirlo).
+`presentacion/Dashboard CUP Chile — Primer avance.pptx`: Presentación con un guion en las notas.
