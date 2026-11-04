@@ -1,17 +1,17 @@
 # Guion y preguntas posibles — Dashboard CUP Chile
 
-Orden de las 19 diapositivas del archivo `Dashboard CUP Chile — Avance 2.pptx`. Cada guion está escrito para decirlo con palabras simples; cambien lo que no les suene natural. Los tiempos suman unos 12 minutos sin la demostración, o sea unos 3 minutos por persona. Somos cuatro: Agustín Tapia, Bastián Campos, Maximiliano Mella y Renato Infante.
+Orden de las 17 diapositivas del archivo `Dashboard CUP Chile - Avance 2.pptx`. Cada guion está escrito para decirlo con palabras simples; cambien lo que no les suene natural. Los tiempos suman unos 10 minutos más unos 4 minutos de demostración en vivo del dashboard. Somos cuatro: Agustín Tapia, Bastián Campos, Maximiliano Mella y Renato Infante.
 
 | Quién | Diapositivas | Tema | Tiempo |
 |---|---|---|---|
-| Maximiliano | 1, 2, 3 y 13, 14, 15 | Apertura, problema, objetivo y dashboard | ~3 min 50 s |
-| Bastián | 4, 5, 6, 16 | Datos, grupos, metodología y plan | ~2 min 35 s |
+| Maximiliano | 1, 2, 3 y 13 | Apertura, problema, objetivo y demostración del dashboard | ~1 min 40 s + 4 min de demo |
+| Bastián | 4, 5, 6, 14 | Datos, grupos, metodología y plan | ~2 min 35 s |
 | Agustín | 7, 8, 9 | Cuánto pesa el CUP, mortalidad y mortalidad ajustada | ~1 min 55 s |
-| Renato | 10, 11, 12, 17 | Quién lo atiende, regiones, comorbilidades y roles | ~2 min 15 s |
-| Los cuatro | 18 | Resumen, una idea cada uno | 40 s |
-| (Maximiliano) | 19 | Referencias, no se presenta | — |
+| Renato | 10, 11, 12, 15 | Quién lo atiende, regiones, comorbilidades y roles | ~2 min 15 s |
+| Los cuatro | 16 | Resumen, una idea cada uno | 40 s |
+| (Maximiliano) | 17 | Referencias, no se presenta | — |
 
-Orden de intervención: Max → Bastián → Agustín → Renato → Max (dashboard) → Bastián (plan) → Renato (roles) → los cuatro. Max abre y muestra el dashboard; si prefieren que el dashboard lo muestre otra persona, basta con cambiar las diapositivas 13 a 15.
+Orden de intervención: Max → Bastián → Agustín → Renato → Max (dashboard) → Bastián (plan) → Renato (roles) → los cuatro. Max abre y muestra el dashboard; si prefieren que el dashboard lo muestre otra persona, basta con cambiar la diapositiva 13.
 
 ---
 
@@ -53,29 +53,44 @@ Orden de intervención: Max → Bastián → Agustín → Renato → Max (dashbo
 ### 12 · Comorbilidades y mortalidad — Renato (40 s)
 "Una comorbilidad es otra enfermedad que el paciente ya tenía, como diabetes o hipertensión. Aquí vemos cuántos pacientes mueren según las enfermedades que tienen. En el CUP, los que no tienen ninguna de las diez enfermedades que medimos mueren 18 de cada 100; con hepatopatía crónica, que es daño crónico del hígado, mueren 42. A más enfermedades, más muertes. Max les muestra ahora todo esto en el dashboard."
 
-### 13 · Dashboard: Inicio — Maximiliano (45 s) *(abrir el dashboard en vivo)*
-"Todo esto ya está en un dashboard que funciona. Arriba van los filtros: año, región, hospital, sexo, edad. Luego los cinco indicadores, con su cambio frente al año anterior. Con este botón cambio a 'CUP vs. metastásicos': la barra es el CUP y cada punto de color es uno de los otros cinco cánceres. Es un archivo que se abre sin internet."
+### 13 · Dashboard en vivo — Maximiliano (unos 4 min)
+Entrada: "Todo esto ya está en un dashboard que funciona. Se los muestro en vivo, pestaña por pestaña." Dejar la diapositiva unos segundos y pasar al navegador (abierto de antes, filtro en 2025).
 
-### 14 · Dashboard: comorbilidades — Maximiliano (40 s)
-"Agregamos tres paneles nuevos. El primero muestra las enfermedades más frecuentes: la hipertensión y la diabetes encabezan. El segundo muestra cuántos mueren con cada una. El tercero es el índice de Charlson, un puntaje que resume cuántas enfermedades crónicas tiene el paciente y qué tan graves son. Todo responde a los mismos filtros."
+Recorrido sugerido, una frase por panel:
 
-### 15 · Dashboard: regresión y calculadora — Maximiliano (45 s)
-"En la pestaña Análisis usamos una regresión lineal, que es una ecuación que relaciona la estadía con las características del paciente. La convertimos en una calculadora: se elige un perfil y entrega los días de hospitalización esperados, en este caso 15,6 días, y los compara con los otros cánceres. Lo que más alarga la estadía es la gravedad alta y el ingreso por urgencia. El modelo explica cerca del 38 % de la variación: sirve para comparar perfiles y planificar camas, no para predecir a un paciente en particular."
+- **Inicio · filtros:** "Arriba se elige año, región, Servicio de Salud, hospital, sexo, edad y tipo de ingreso; todo lo de abajo cambia con eso."
+- **Indicadores:** "Cinco números: egresos, pacientes, mortalidad, estadía y peso GRD, con su cambio frente al período anterior."
+- **Botón 'CUP vs. metastásicos':** "La barra es el CUP y cada punto de color es uno de los otros cinco cánceres."
+- **Sitios de metástasis:** "Dónde está diseminado el cáncer; en el CUP, hígado, hueso y peritoneo encabezan."
+- **Evolución mensual:** "Cuántas hospitalizaciones hay cada mes, comparadas con el año anterior."
+- **Sexo y edad:** "Quién es el paciente: mitad hombres y mitad mujeres, sobre todo entre 60 y 79 años."
+- **Tabla comparativa:** "Los seis grupos lado a lado; el CUP tiene de las mortalidades más altas."
+- **Comorbilidades:** "Las diez enfermedades crónicas más frecuentes; hipertensión y diabetes encabezan."
+- **Mortalidad según comorbilidad:** "Cuántos mueren de cada 100 con cada enfermedad, frente a los que no tienen ninguna."
+- **Índice de Charlson:** "Un puntaje que resume cuántas enfermedades crónicas tiene el paciente; a más puntos, más muertes."
+- **Mapa:** "Más oscuro, más egresos; al hacer clic en una región, se filtra por ella."
+- **Análisis · calculadora:** "Elijo un perfil y el modelo da la estadía esperada: 15,6 días en el perfil base, y la compara con los otros cánceres."
+- **Coeficientes:** "Qué alarga la estadía: sobre todo la gravedad alta y el ingreso por urgencia."
+- **Calidad del modelo:** "Explica cerca del 38 % de la variación; sirve para comparar perfiles y planificar camas, no para un paciente."
+- **Correlaciones:** "Con este mapa de calor elegimos qué variables entraban al modelo."
+- **Descargas y Metodología (breve):** "Se bajan los datos filtrados en CSV o una captura en PDF, y aquí está cómo se calcula cada indicador."
 
-### 16 · Plan de trabajo — Bastián (30 s)
+Salida: "Volvemos a la presentación; Bastián cuenta lo que viene."
+
+### 14 · Plan de trabajo — Bastián (30 s)
 "Nos quedan seis semanas. En paralelo avanzamos con la estadística y con el dashboard. La semana 12 es la revisión de avances, la 13 son pruebas y correcciones, y la 14 es la entrega final: presentación, informe y póster."
 
-### 17 · Roles — Renato (20 s)
+### 15 · Roles — Renato (20 s)
 "Bastián se encarga de los datos y el análisis, Agustín de los gráficos y la interpretación, Max del dashboard y yo de las comorbilidades, los mapas por región y la revisión de las cifras. Trabajamos con un repositorio compartido y una reunión semanal."
 
-### 18 · Resumen — los cuatro (40 s)
+### 16 · Resumen — los cuatro (40 s)
 - Maximiliano: "Mueren 22 de cada 100, igual que en pulmón y más que en los otros cuatro cánceres."
 - Bastián: "Solo 5 de cada 100 reciben el alta de oncología: casi no pasa por el circuito del cáncer."
 - Agustín: "Aun igualando el perfil del paciente, el CUP muere una vez y media más que colorrectal y próstata."
 - Renato: "La atención depende de dónde vive el paciente: en Antofagasta oncología atiende a 17 de cada 100, en la Región Metropolitana a 2."
 - Cierre: "Gracias. ¿Preguntas?"
 
-### 19 · Referencias — Maximiliano (no se presenta)
+### 17 · Referencias — Maximiliano (no se presenta)
 Dejarla en pantalla mientras se responde si preguntan por las fuentes.
 
 ---
@@ -201,7 +216,7 @@ Pruebas de hipótesis formales entre el CUP y cada grupo, ANOVA por Servicio de 
 ## Consejos para el día
 - Digan primero la conclusión y después el número. "El CUP muere tanto como pulmón: 22 de cada 100."
 - Si no saben una respuesta: "Eso no lo medimos, pero lo anotamos como limitación." Es mejor que inventar.
-- Ensayen la demostración del dashboard con el filtro del año 2025 y los botones "CUP vs. metastásicos" y "Análisis". Dejen el navegador abierto antes de empezar.
-- Cuiden el tiempo: las diapositivas 4 a 6 son las más fáciles de alargar. Con cuatro personas, cada traspaso es una frase corta ("ahora Bastián"); no más.
+- Ensayen la demostración del dashboard con el filtro del año 2025 y los botones "CUP vs. metastásicos" y "Análisis". Dejen el navegador abierto antes de empezar y cronométrenla: si pasa de 5 minutos, recorten Descargas y Metodología. Las pestañas Comparaciones y Territorio están en desarrollo: no las abran.
+- Cuiden el tiempo: las diapositivas 4 a 6 y la demostración son las más fáciles de alargar. Con cuatro personas, cada traspaso es una frase corta ("ahora Bastián"); no más.
 - Practiquen los traspasos: la diapositiva cambia justo cuando el siguiente empieza a hablar.
 - Si alguien se bloquea, la persona que presentó esa parte retoma; las preguntas las toma quien las respondió en la tabla.
