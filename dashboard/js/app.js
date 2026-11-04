@@ -1,4 +1,4 @@
-// Dashboard CUP Chile – pestaña Inicio (v0.1, avance semana 9)
+// Dashboard CUP Chile (v0.2): pestañas Inicio, Análisis (modelo de estadía) y Descargas
 // Los datos vienen de datos/datos.js (generado con preparar_datos.py): una posición por egreso en cada arreglo.
 
 const E = DATOS.egresos;
@@ -9,16 +9,27 @@ const G_C809 = 1;         // C80.9 (solo si el filtro de diagnóstico lo incluye
 const CODIGO_SITIO = ['C78.7', 'C78.6', 'C78.0', 'C79.5', 'C79.3', 'C77', 'C78.2', 'C79.7'];
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-const COLOR = {
-  violeta: '#4a3aa7',
-  violetaClaro: '#a59cdb',
-  gris: '#8a877f',        // contexto: metastásicos y año anterior (pasa contraste 3:1)
-  grilla: '#efeef4',
-  texto: '#5c5970',
-};
-// Rampa para el mapa (más oscuro = más egresos), cortes como en el boceto de Figma
-const CORTES_MAPA = [15, 30, 60];
-const RAMPA_MAPA = ['#e6e2f6', '#bfb7ea', '#8f84d9', '#4a3aa7'];
+// Los colores se leen de las variables CSS (css/estilos.css), así cambian con el modo de alto contraste.
+// gris = contexto (año anterior, referencias); cada grupo tiene su color (COLOR.grupos, en el orden de DATOS.grupos).
+// RAMPA_MAPA: más oscuro = más egresos. DIVERGE: azul (negativo), gris (0), rojo (positivo) para las correlaciones.
+let COLOR = {};
+let RAMPA_MAPA = [];
+const CORTES_MAPA = [15, 30, 60];   // cortes como en el boceto de Figma
+
+function leerColores() {
+  const css = getComputedStyle(document.documentElement);
+  const v = nombre => css.getPropertyValue(nombre).trim();
+  COLOR = {
+    violeta: v('--violeta'), violetaClaro: v('--violeta-claro'), gris: v('--gris'), grilla: v('--grilla'),
+    texto: v('--texto-2'), tinta: v('--tinta'), tarjeta: v('--tarjeta'), naranjo: v('--naranjo'), azul: v('--azul'),
+    apagado: v('--apagado'),
+    // CUP, CUP potencial (C80.9, mismo color que el CUP), Pulmón, Colorrectal, Mama, Próstata, Gástrico
+    grupos: ['cup', 'cup', 'pulmon', 'colorrectal', 'mama', 'prostata', 'gastrico'].map(g => v(`--g-${g}`)),
+    diverge: ['neg', 'medio', 'pos'].map(p => v(`--diverge-${p}`)),
+  };
+  RAMPA_MAPA = [1, 2, 3, 4].map(k => v(`--mapa-${k}`));
+  Chart.defaults.color = COLOR.texto;
+}
 
 // Estado de los filtros
 const estado = {
@@ -107,14 +118,15 @@ function filtrarEgresos({ periodo = periodoActual(), grupo = 'cup', ignorarRegio
 
 function calcularKPI(indices) {
   const n = indices.length;
-  if (n === 0) return { egresos: 0, pacientes: 0, mortalidad: NaN, estada: NaN, peso: NaN, sev3: NaN };
-  let muertes = 0, peso = 0, sev3 = 0;
+  if (n === 0) return { egresos: 0, pacientes: 0, mortalidad: NaN, estada: NaN, peso: NaN, sev3: NaN, charlson2: NaN };
+  let muertes = 0, peso = 0, sev3 = 0, charlson2 = 0;
   const pacientes = new Set();
   const estadas = [];
   for (const i of indices) {
     muertes += E.fallece[i];
     peso += E.peso[i];
     sev3 += E.sev3[i];
+    if (E.charlson[i] >= 2) charlson2++;
     pacientes.add(E.paciente[i]);
     estadas.push(E.estada[i]);
   }
@@ -125,6 +137,7 @@ function calcularKPI(indices) {
     estada: mediana(estadas),
     peso: peso / n / 100,
     sev3: sev3 / n * 100,
+    charlson2: charlson2 / n * 100,
   };
 }
 
@@ -388,7 +401,6 @@ function actualizarKPI() {
 // ---------------------------------------------------------------- gráficos (Chart.js)
 Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
 Chart.defaults.font.size = 12;
-Chart.defaults.color = COLOR.texto;
 
 // Plugin simple: escribe el valor al final de cada barra (solo donde lo pedimos)
 const etiquetasBarras = {
@@ -398,15 +410,17 @@ const etiquetasBarras = {
     const { ctx } = chart;
     ctx.save();
     ctx.font = '600 11.5px ' + Chart.defaults.font.family;
-    ctx.fillStyle = '#1c1a2e';
+    ctx.fillStyle = COLOR.tinta;
     chart.data.datasets.forEach((ds, k) => {
       if (opciones.soloPrimero && k > 0) return;
       chart.getDatasetMeta(k).data.forEach((barra, j) => {
         const v = ds.data[j];
-        const texto = opciones.formato ? opciones.formato(v) : fmtEntero(v);
+        if (v === null || v === undefined) return;   // sin dato (por ejemplo, cifra poco estable)
+        const texto = opciones.formato ? opciones.formato(v, j) : fmtEntero(v);
         if (chart.options.indexAxis === 'y') {
-          ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-          ctx.fillText(texto, barra.x + 5, barra.y);
+          // barras negativas: el texto va a la izquierda del extremo
+          ctx.textAlign = v < 0 ? 'right' : 'left'; ctx.textBaseline = 'middle';
+          ctx.fillText(texto, barra.x + (v < 0 ? -5 : 5), barra.y);
         } else {
           ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
           ctx.fillText(texto, barra.x, barra.y - 4);
@@ -423,52 +437,178 @@ function dibujarGrafico(id, config) {
   graficos[id] = new Chart(document.getElementById(id), config);
 }
 
-const ejeLimpio = { grid: { color: COLOR.grilla }, border: { display: false } };
+const ejeLimpio = () => ({ grid: { color: COLOR.grilla }, border: { display: false } });
 
-function contarSitios(indices) {
-  const cuenta = new Array(DATOS.sitios.length).fill(0);
+// Vista comparativa: el CUP en barras y cada cáncer metastásico como un punto de su color (cinco barras más por
+// categoría no se leerían). valores(indices) devuelve { data, ...datos extra para el tooltip } de un grupo.
+const GRUPOS_MET = [2, 3, 4, 5, 6];   // posiciones en DATOS.grupos: Pulmón … Gástrico
+const leyendaGrupos = { display: true, position: 'top', align: 'end', labels: { boxWidth: 8, boxHeight: 8, usePointStyle: true } };
+
+function datasetsComparacion(valores) {
+  const datasets = [{ type: 'bar', label: 'CUP', ...valores(filtrarEgresos()), backgroundColor: COLOR.grupos[0],
+                      borderRadius: 4, barPercentage: 0.75, order: 2 }];
+  for (const g of GRUPOS_MET) {
+    datasets.push({ type: 'line', label: DATOS.grupos[g], ...valores(filtrarEgresos({ grupo: g })), showLine: false,
+                    pointStyle: 'circle', pointRadius: 5, pointHoverRadius: 7, backgroundColor: COLOR.grupos[g],
+                    borderColor: COLOR.tarjeta, borderWidth: 1.5, order: 1 });
+  }
+  return datasets;
+}
+
+// Cuenta los egresos con cada bit encendido en un campo de máscara (sitios de metástasis o comorbilidades)
+function contarBits(indices, campo, n) {
+  const cuenta = new Array(n).fill(0);
   for (const i of indices) {
-    for (let b = 0; b < cuenta.length; b++) if (E.sitios[i] & (1 << b)) cuenta[b]++;
+    for (let b = 0; b < n; b++) if (E[campo][i] & (1 << b)) cuenta[b]++;
   }
   return cuenta;
 }
 
-function graficoSitios() {
+// Barras horizontales por bit, de mayor a menor en el CUP. Solo CUP: N° de egresos; comparar: % de cada grupo.
+// notas = { cup, comparar }: textos de la nota bajo el título según la vista
+function graficoPorBits(id, campo, nombres, notas) {
   const cup = filtrarEgresos();
-  const cuenta = contarSitios(cup);
+  const cuenta = contarBits(cup, campo, nombres.length);
   const orden = cuenta.map((v, k) => k).sort((a, b) => cuenta[b] - cuenta[a]);
-  const etiquetas = orden.map(k => `${DATOS.sitios[k]} (${CODIGO_SITIO[k]})`);
+  const etiquetas = orden.map(k => nombres[k]);
   const comparar = estado.vista === 'comparar';
-  const datasets = [];
+  let datasets;
 
   if (!comparar) {
-    datasets.push({ label: 'Egresos CUP', data: orden.map(k => cuenta[k]), backgroundColor: COLOR.violeta,
-                    borderRadius: 4, barPercentage: 0.75 });
-    document.getElementById('nota-sitios').textContent =
-      `N° de egresos CUP ${textoPeriodo()} con metástasis codificada en cada sitio · un egreso puede tener varios`;
+    datasets = [{ label: 'Egresos CUP', data: orden.map(k => cuenta[k]), backgroundColor: COLOR.violeta,
+                  borderRadius: 4, barPercentage: 0.75 }];
+    document.getElementById('nota-' + id.slice(2)).textContent = notas.cup;
   } else {
-    const met = filtrarEgresos({ grupo: 'met' });
-    const cuentaMet = contarSitios(met);
-    datasets.push({ label: 'CUP', data: orden.map(k => cup.length ? cuenta[k] / cup.length * 100 : 0),
-                    backgroundColor: COLOR.violeta, borderRadius: 4 });
-    datasets.push({ label: 'Metastásicos', data: orden.map(k => met.length ? cuentaMet[k] / met.length * 100 : 0),
-                    backgroundColor: COLOR.gris, borderRadius: 4 });
-    document.getElementById('nota-sitios').textContent =
-      `% de egresos ${textoPeriodo()} con metástasis en cada sitio · CUP frente a los 5 cánceres metastásicos`;
+    datasets = datasetsComparacion(indices => {
+      const c = contarBits(indices, campo, nombres.length);
+      return { data: orden.map(k => (indices.length ? c[k] / indices.length * 100 : 0)) };
+    });
+    document.getElementById('nota-' + id.slice(2)).textContent = notas.comparar;
   }
 
-  dibujarGrafico('g-sitios', {
+  dibujarGrafico(id, {
     type: 'bar',
     data: { labels: etiquetas, datasets },
     options: {
       indexAxis: 'y', maintainAspectRatio: false,
       layout: { padding: { right: 36 } },
-      scales: { x: { ...ejeLimpio, ticks: { callback: v => fmtEntero(v) + (comparar ? ' %' : '') } },
+      scales: { x: { ...ejeLimpio(), ticks: { callback: v => fmtEntero(v) + (comparar ? ' %' : '') } },
                 y: { grid: { display: false }, border: { display: false } } },
       plugins: {
-        legend: { display: comparar, position: 'top', align: 'end', labels: { boxWidth: 12 } },
-        tooltip: { callbacks: { label: c => comparar ? `${c.dataset.label}: ${fmtDec(c.raw)} %` : `${fmtEntero(c.raw)} egresos` } },
-        etiquetasBarras: { mostrar: true, soloPrimero: comparar, formato: comparar ? v => fmtDec(v, 0) + ' %' : null },
+        legend: comparar ? leyendaGrupos : { display: false },
+        tooltip: { callbacks: { label: c => comparar ? `${c.dataset.label}: ${fmtDec(c.raw)} %`
+          : `${fmtEntero(c.raw)} egresos (${cup.length ? fmtDec(c.raw / cup.length * 100) : 0} % de los CUP)` } },
+        etiquetasBarras: { mostrar: !comparar },
+      },
+    },
+  });
+}
+
+function graficoSitios() {
+  graficoPorBits('g-sitios', 'sitios', DATOS.sitios.map((s, k) => `${s} (${CODIGO_SITIO[k]})`), {
+    cup: `N° de egresos CUP ${textoPeriodo()} con metástasis codificada en cada sitio · un egreso puede tener varios`,
+    comparar: `% de egresos ${textoPeriodo()} con metástasis en cada sitio · barra: CUP; punto: cada cáncer metastásico`,
+  });
+}
+
+function graficoComorbilidades() {
+  graficoPorBits('g-comorb', 'comorb', DATOS.comorbilidades, {
+    cup: `N° de egresos CUP ${textoPeriodo()} con cada enfermedad en los diagnósticos secundarios · un egreso puede tener varias`,
+    comparar: `% de egresos ${textoPeriodo()} con cada enfermedad · barra: CUP; punto: cada cáncer metastásico`,
+  });
+}
+
+// Mortalidad según comorbilidad: muertes de cada 100 egresos que tienen cada enfermedad. La última posición es
+// "sin ninguna de las 10" (la referencia). Con menos de MIN_ESTABLE egresos la cifra no se muestra (poco estable).
+const MIN_ESTABLE = 30;
+
+function mortalidadPorComorb(indices) {
+  const n = DATOS.comorbilidades.length;
+  const total = new Array(n + 1).fill(0), muertes = new Array(n + 1).fill(0);
+  for (const i of indices) {
+    const m = E.comorb[i];
+    if (!m) { total[n]++; muertes[n] += E.fallece[i]; continue; }
+    for (let b = 0; b < n; b++) if (m & (1 << b)) { total[b]++; muertes[b] += E.fallece[i]; }
+  }
+  return { total, mortalidad: total.map((t, k) => (t >= MIN_ESTABLE ? muertes[k] / t * 100 : null)) };
+}
+
+function graficoMortalidadComorb() {
+  const n = DATOS.comorbilidades.length;
+  const cup = mortalidadPorComorb(filtrarEgresos());
+  // "Sin ninguna" primero (referencia) y luego de mayor a menor mortalidad en el CUP; las poco estables al final
+  const orden = [n].concat(DATOS.comorbilidades.map((c, k) => k)
+    .sort((a, b) => (cup.mortalidad[b] ?? -1) - (cup.mortalidad[a] ?? -1)));
+  const etiquetas = orden.map(k => (k === n ? 'Sin ninguna de las 10' : DATOS.comorbilidades[k]));
+  const serie = r => ({ data: orden.map(k => r.mortalidad[k]), n: orden.map(k => r.total[k]) });
+  const comparar = estado.vista === 'comparar';
+  const datasets = comparar ? datasetsComparacion(indices => serie(mortalidadPorComorb(indices)))
+    : [{ label: 'CUP', ...serie(cup), borderRadius: 4, barPercentage: 0.75,
+         backgroundColor: orden.map(k => (k === n ? COLOR.gris : COLOR.violeta)) }];
+  const referencia = cup.mortalidad[n];
+  document.getElementById('nota-mortcomorb').textContent =
+    `Muertes de cada 100 egresos ${comparar ? '' : 'CUP '}${textoPeriodo()} que tienen cada enfermedad · ` +
+    `${comparar ? 'barra: CUP; punto: cada cáncer · ' : ''}CUP sin ninguna de las 10: ` +
+    `${referencia === null ? 'pocos egresos' : fmtDec(referencia) + ' %'} · sin barra: menos de ${MIN_ESTABLE} egresos`;
+
+  dibujarGrafico('g-mortcomorb', {
+    type: 'bar',
+    data: { labels: etiquetas, datasets },
+    options: {
+      indexAxis: 'y', maintainAspectRatio: false,
+      layout: { padding: { right: 36 } },
+      scales: { x: { ...ejeLimpio(), beginAtZero: true, ticks: { callback: v => fmtEntero(v) + ' %' } },
+                y: { grid: { display: false }, border: { display: false },
+                     ticks: { font: c => (c.index === 0 ? { weight: '600' } : {}) } } },
+      plugins: {
+        legend: comparar ? leyendaGrupos : { display: false },
+        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmtDec(c.raw)} % mueren ` +
+                                            `(${fmtEntero(c.dataset.n[c.dataIndex])} egresos)` } },
+        etiquetasBarras: { mostrar: !comparar, formato: v => fmtDec(v, 0) + ' %' },
+      },
+    },
+  });
+}
+
+// Índice de Charlson (sin cáncer) en 4 categorías: % de egresos en cada una y su mortalidad en el tooltip
+const CATEGORIAS_CHARLSON = ['0', '1', '2', '3 o más'];
+
+function porCharlson(indices) {
+  const n = [0, 0, 0, 0], muertes = [0, 0, 0, 0];
+  for (const i of indices) {
+    const c = Math.min(E.charlson[i], 3);
+    n[c]++;
+    muertes[c] += E.fallece[i];
+  }
+  const total = indices.length;
+  return { pct: n.map(v => (total ? v / total * 100 : 0)), n, mortalidad: n.map((v, c) => (v ? muertes[c] / v * 100 : NaN)) };
+}
+
+function graficoCharlson() {
+  const comparar = estado.vista === 'comparar';
+  const serie = indices => { const r = porCharlson(indices); return { data: r.pct, mortalidad: r.mortalidad, n: r.n }; };
+  const datasets = comparar ? datasetsComparacion(serie)
+    : [{ label: 'CUP', ...serie(filtrarEgresos()), backgroundColor: COLOR.violeta, borderRadius: 4, barPercentage: 0.6 }];
+  document.getElementById('nota-charlson').textContent = comparar
+    ? `% de egresos ${textoPeriodo()} según el índice de Charlson · barra: CUP; punto: cada cáncer · mortalidad en el detalle`
+    : `% de egresos CUP ${textoPeriodo()} según el índice de Charlson (puntos por enfermedad crónica, sin contar el cáncer)`;
+
+  dibujarGrafico('g-charlson', {
+    type: 'bar',
+    data: { labels: CATEGORIAS_CHARLSON.map(c => (c === '1' ? '1 punto' : `${c} puntos`)), datasets },
+    options: {
+      maintainAspectRatio: false,
+      layout: { padding: { top: 18 } },
+      scales: { y: { ...ejeLimpio(), beginAtZero: true, ticks: { callback: v => fmtEntero(v) + ' %' } },
+                x: { grid: { display: false } } },
+      plugins: {
+        legend: comparar ? leyendaGrupos : { display: false },
+        tooltip: { callbacks: {
+          label: c => `${c.dataset.label}: ${fmtDec(c.raw)} % (${fmtEntero(c.dataset.n[c.dataIndex])} egresos)`,
+          afterLabel: c => (isFinite(c.dataset.mortalidad[c.dataIndex])
+            ? `Mortalidad: ${fmtDec(c.dataset.mortalidad[c.dataIndex])} %` : ''),
+        } },
+        etiquetasBarras: { mostrar: !comparar, formato: v => fmtDec(v, 0) + ' %' },
       },
     },
   });
@@ -510,7 +650,7 @@ function graficoMensual() {
     options: {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      scales: { y: { ...ejeLimpio, beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
+      scales: { y: { ...ejeLimpio(), beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
       plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 18 } } },
     },
   });
@@ -536,7 +676,7 @@ function graficoSexo() {
       const x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2;
       ctx.save();
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#1c1a2e';
+      ctx.fillStyle = COLOR.tinta;
       ctx.font = '700 20px ' + Chart.defaults.font.family;
       ctx.fillText(fmtEntero(total), x, y + 2);
       ctx.fillStyle = COLOR.texto;
@@ -550,7 +690,7 @@ function graficoSexo() {
     data: {
       labels: ['Hombres', 'Mujeres'],
       datasets: [{ data: [hombres, mujeres], backgroundColor: [COLOR.violeta, COLOR.violetaClaro],
-                   borderColor: '#fff', borderWidth: 2 }],
+                   borderColor: COLOR.tarjeta, borderWidth: 2 }],
     },
     options: {
       maintainAspectRatio: false, cutout: '62%',
@@ -558,7 +698,7 @@ function graficoSexo() {
         legend: { position: 'bottom', labels: { boxWidth: 12,
           generateLabels: chart => chart.data.labels.map((l, k) => ({
             text: `${l}: ${fmtEntero(chart.data.datasets[0].data[k])} (${total ? fmtDec(chart.data.datasets[0].data[k] / total * 100) : 0} %)`,
-            fillStyle: chart.data.datasets[0].backgroundColor[k], strokeStyle: '#fff', index: k })) } },
+            fillStyle: chart.data.datasets[0].backgroundColor[k], strokeStyle: COLOR.tarjeta, index: k })) } },
         tooltip: { callbacks: { label: c => `${c.label}: ${fmtEntero(c.raw)} (${fmtDec(c.raw / total * 100)} %)` } },
       },
     },
@@ -582,13 +722,8 @@ function graficoEdad() {
     datasets = [{ label: 'Egresos CUP', data: cuenta, backgroundColor: COLOR.violeta, borderRadius: 4, barPercentage: 0.7 }];
     document.getElementById('nota-edad').textContent = `N° de egresos CUP ${textoPeriodo()} por tramo de edad al ingreso`;
   } else {
-    const met = filtrarEgresos({ grupo: 'met' });
-    const cm = contarTramos(met);
-    datasets = [
-      { label: 'CUP', data: cuenta.map(v => cup.length ? v / cup.length * 100 : 0), backgroundColor: COLOR.violeta, borderRadius: 4 },
-      { label: 'Metastásicos', data: cm.map(v => met.length ? v / met.length * 100 : 0), backgroundColor: COLOR.gris, borderRadius: 4 },
-    ];
-    document.getElementById('nota-edad').textContent = `% de egresos ${textoPeriodo()} en cada tramo de edad · CUP frente a metastásicos`;
+    datasets = datasetsComparacion(indices => ({ data: contarTramos(indices).map(v => (indices.length ? v / indices.length * 100 : 0)) }));
+    document.getElementById('nota-edad').textContent = `% de egresos ${textoPeriodo()} en cada tramo de edad · barra: CUP; punto: cada cáncer`;
   }
   dibujarGrafico('g-edad', {
     type: 'bar',
@@ -596,10 +731,10 @@ function graficoEdad() {
     options: {
       maintainAspectRatio: false,
       layout: { padding: { top: 18 } },
-      scales: { y: { ...ejeLimpio, beginAtZero: true, ticks: { callback: v => fmtEntero(v) + (comparar ? ' %' : '') } },
+      scales: { y: { ...ejeLimpio(), beginAtZero: true, ticks: { callback: v => fmtEntero(v) + (comparar ? ' %' : '') } },
                 x: { grid: { display: false } } },
       plugins: {
-        legend: { display: comparar, position: 'top', align: 'end', labels: { boxWidth: 12 } },
+        legend: comparar ? leyendaGrupos : { display: false },
         tooltip: { callbacks: { label: c => comparar ? `${c.dataset.label}: ${fmtDec(c.raw)} %`
                                                      : `${fmtEntero(c.raw)} egresos (${fmtDec(c.raw / cup.length * 100)} %)` } },
         etiquetasBarras: { mostrar: !comparar },
@@ -691,13 +826,17 @@ function actualizarTabla() {
   const resto = filasTabla.slice(1).sort((a, b) => (b.mortalidad || 0) - (a.mortalidad || 0));
   filasTabla = [filasTabla[0]].concat(resto);
 
-  let html = '<tr><th>Grupo</th><th>Egresos</th><th>Var.</th><th>Mortalidad</th><th>Estancia</th><th>Sev. 3</th><th>Peso</th></tr>';
+  let html = '<tr><th>Grupo</th><th>Egresos</th><th>Var.</th><th>Mortalidad</th><th>Estancia</th><th>Sev. 3</th>' +
+             '<th>Ch. ≥ 2</th><th>Peso</th></tr>';
   for (const f of filasTabla) {
     const vacio = f.egresos === 0;
-    html += `<tr class="${f.grupo === 'cup' ? 'fila-cup' : ''}"><td>${f.nombre}</td><td>${fmtEntero(f.egresos)}</td>` +
+    const color = COLOR.grupos[f.grupo === 'cup' ? 0 : f.grupo];
+    html += `<tr class="${f.grupo === 'cup' ? 'fila-cup' : ''}"><td><span class="punto-grupo" style="background:${color}"></span>` +
+      `${f.nombre}</td><td>${fmtEntero(f.egresos)}</td>` +
       `<td>${isFinite(f.variacion) ? (f.variacion >= 0 ? '+' : '−') + fmtDec(Math.abs(f.variacion)) + ' %' : '–'}</td>` +
       `<td>${vacio ? '–' : fmtDec(f.mortalidad) + ' %'}</td><td>${vacio ? '–' : fmtDec(f.estada, 0) + ' d'}</td>` +
-      `<td>${vacio ? '–' : fmtDec(f.sev3) + ' %'}</td><td>${vacio ? '–' : fmtDec(f.peso, 2)}</td></tr>`;
+      `<td>${vacio ? '–' : fmtDec(f.sev3) + ' %'}</td><td>${vacio ? '–' : fmtDec(f.charlson2) + ' %'}</td>` +
+      `<td>${vacio ? '–' : fmtDec(f.peso, 2)}</td></tr>`;
   }
   document.getElementById('tabla-comparacion').innerHTML = html;
   document.getElementById('nota-tabla').textContent = `Egresos ${textoPeriodo()} por grupo · ordenado por mortalidad`;
@@ -716,10 +855,12 @@ function bajarCSV(nombre, filas) {
 const periodoArchivo = () => textoPeriodo().replace('–', '-');
 
 function descargarCSV() {
-  const enc = ['Grupo', 'Egresos', 'Variacion_%', 'Mortalidad_%', 'Estancia_mediana_dias', 'Severidad3_%', 'Peso_GRD'];
+  const enc = ['Grupo', 'Egresos', 'Variacion_%', 'Mortalidad_%', 'Estancia_mediana_dias', 'Severidad3_%',
+               'Charlson_2_o_mas_%', 'Peso_GRD'];
   bajarCSV(`comparacion_cup_${periodoArchivo()}.csv`, [enc].concat(filasTabla.map(f => [
     f.nombre, f.egresos, isFinite(f.variacion) ? fmtDec(f.variacion) : '', isFinite(f.mortalidad) ? fmtDec(f.mortalidad) : '',
-    isFinite(f.estada) ? f.estada : '', isFinite(f.sev3) ? fmtDec(f.sev3) : '', isFinite(f.peso) ? fmtDec(f.peso, 2) : '',
+    isFinite(f.estada) ? f.estada : '', isFinite(f.sev3) ? fmtDec(f.sev3) : '',
+    isFinite(f.charlson2) ? fmtDec(f.charlson2) : '', isFinite(f.peso) ? fmtDec(f.peso, 2) : '',
   ])));
 }
 
@@ -727,17 +868,18 @@ function descargarCSV() {
 const SEXOS = ['Hombre', 'Mujer'];
 const COLUMNAS_EGRESO = ['Año', 'Mes_alta', 'Grupo', 'Región', 'Servicio_Salud', 'Codigo_hospital', 'Hospital', 'Sexo',
                          'Tramo_edad', 'Tipo_ingreso', 'Fallece', 'Estancia_dias', 'Peso_GRD', 'Severidad_3',
-                         'Sitios_metastasis'];
+                         'Sitios_metastasis', 'Comorbilidades', 'Charlson'];
 
 function filaEgreso(i) {
   const sitios = DATOS.sitios.filter((s, b) => E.sitios[i] & (1 << b)).join(' | ');
+  const comorb = DATOS.comorbilidades.filter((c, b) => E.comorb[i] & (1 << b)).join(' | ');
   const hospital = DATOS.hospitales[E.hospital[i]] || { codigo: '', nombre: '' };
   return [
     E.anio[i], E.mes[i] || '', DATOS.grupos[E.grupo[i]], DATOS.regiones[E.region[i]] || '',
     E.servicio[i] >= 0 ? DATOS.servicios[E.servicio[i]].nombre : '', hospital.codigo, hospital.nombre,
     SEXOS[E.sexo[i]] || '',
     DATOS.tramos[E.tramo[i]] || '', DATOS.ingresos[E.ingreso[i]] || '', E.fallece[i], E.estada[i],
-    fmtDec(E.peso[i] / 100, 2), E.sev3[i], sitios,
+    fmtDec(E.peso[i] / 100, 2), E.sev3[i], sitios, comorb, E.charlson[i],
   ];
 }
 
@@ -794,7 +936,8 @@ async function guardarPDF() {
     const lienzo = await html2canvas(document.body, {
       scale: 2, backgroundColor: getComputedStyle(document.body).backgroundColor,
       windowWidth: document.documentElement.scrollWidth,
-      ignoreElements: el => el.id === 'tooltip-mapa' || el.classList.contains('creditos') || el.id === 'descargar',
+      ignoreElements: el => el.id === 'tooltip-mapa' || el.classList.contains('creditos') || el.id === 'descargar' ||
+                            el.id === 'alto-contraste',
       onclone: doc => {
         // html2canvas no aplica el CSS a los SVG: se copia el estilo de los íconos como atributos
         doc.querySelectorAll('svg').forEach(svg => {
@@ -821,6 +964,193 @@ async function guardarPDF() {
   }
 }
 
+// ---------------------------------------------------------------- pestaña Análisis: modelo de estadía
+// Regresión lineal de log(1 + días) ajustada en el notebook (P13). No depende de los filtros de Inicio.
+// Estadía esperada = e^(b0 + Σ b·x) · smearing − 1; las categorías de referencia no tienen coeficiente (aportan 0).
+const MODELO = DATOS.modelo;
+const COEF = MODELO ? Object.fromEntries(MODELO.coeficientes.map(c => [c.variable, c])) : {};
+
+// El formulario se arma con MODELO.entradas (lo define el notebook): categorica = un selector y suma el coeficiente
+// "VARIABLE: valor"; binaria = un selector 0/1 que multiplica el coeficiente; casillas = suma cada casilla marcada.
+function predecirEstadia(perfil) {
+  const b = v => (COEF[v] ? COEF[v].b : 0);
+  let z = MODELO.intercepto;
+  for (const e of MODELO.entradas) {
+    if (e.tipo === 'categorica') z += b(`${e.variable}: ${perfil[e.variable]}`);
+    else if (e.tipo === 'binaria') z += perfil[e.variable] * b(e.variable);
+  }
+  for (const v of perfil.casillas) z += b(v);
+  return Math.exp(z) * MODELO.smearing - 1;
+}
+
+function perfilCalculadora() {
+  const perfil = { casillas: [...document.querySelectorAll('#calculadora input:checked')].map(c => c.value) };
+  document.querySelectorAll('#calculadora select').forEach(sel => {
+    perfil[sel.dataset.variable] = sel.dataset.tipo === 'binaria' ? parseInt(sel.value, 10) : sel.value;
+  });
+  return perfil;
+}
+
+function llenarCalculadora() {
+  if (!MODELO || !MODELO.entradas) {
+    document.getElementById('contenido-modelo').innerHTML =
+      '<p class="nota">Falta el modelo: ejecutar el notebook (pregunta P13) y luego <code>python preparar_datos.py</code>.</p>';
+    return false;
+  }
+  const campos = document.getElementById('campos-calculadora');
+  const casillas = document.getElementById('casillas-calculadora');
+  for (const e of MODELO.entradas) {
+    if (e.tipo === 'casillas') {
+      casillas.insertAdjacentHTML('beforeend', `<fieldset class="casillas"><legend>${e.nombre}</legend>` +
+        e.opciones.map(([valor, texto]) => `<label><input type="checkbox" value="${valor}"> ${texto}</label>`).join('') +
+        '</fieldset>');
+      continue;
+    }
+    const etiqueta = document.createElement('label');
+    etiqueta.textContent = e.nombre;
+    const sel = document.createElement('select');
+    sel.dataset.variable = e.variable;
+    sel.dataset.tipo = e.tipo;
+    e.opciones.forEach(([valor, texto]) => sel.add(new Option(texto, valor)));
+    sel.value = e.defecto;
+    etiqueta.append(sel);
+    campos.append(etiqueta);
+  }
+  document.getElementById('calculadora').addEventListener('change', actualizarCalculadora);
+  return true;
+}
+
+function actualizarCalculadora() {
+  const perfil = perfilCalculadora();
+  const dias = predecirEstadia(perfil);
+  const grupos = MODELO.entradas.find(e => e.variable === 'GRUPO').opciones.map(([g]) => g);
+  const porGrupo = grupos.map(g => ({ grupo: g, dias: predecirEstadia({ ...perfil, GRUPO: g }) }));
+  const cup = porGrupo.find(g => g.grupo === 'CUP').dias;
+  const otros = porGrupo.filter(g => g.grupo !== 'CUP').map(g => g.dias);
+  const comparacion = perfil.GRUPO === 'CUP'
+    ? `Con el mismo perfil, un cáncer metastásico de primario conocido estaría entre ${fmtDec(Math.min(...otros))} y ${fmtDec(Math.max(...otros))} días.`
+    : `Con el mismo perfil, un paciente CUP estaría ${fmtDec(cup)} días (${cup >= dias ? '+' : '−'}${fmtDec(Math.abs(cup / dias - 1) * 100, 0)} %).`;
+  document.getElementById('c-resultado').innerHTML =
+    `<span class="etiqueta">Estadía esperada</span><div class="kpi-valor">${fmtDec(dias)} días</div>` +
+    `<p>${comparacion}</p>`;
+
+  const indiceGrupo = g => DATOS.grupos.indexOf(g);
+  dibujarGrafico('g-perfil', {
+    type: 'bar',
+    data: { labels: porGrupo.map(g => g.grupo),
+            datasets: [{ data: porGrupo.map(g => g.dias), borderRadius: 4, barPercentage: 0.7,
+                         backgroundColor: porGrupo.map(g => COLOR.grupos[indiceGrupo(g.grupo)]) }] },
+    options: {
+      indexAxis: 'y', maintainAspectRatio: false,
+      layout: { padding: { right: 44 } },
+      scales: { x: { ...ejeLimpio(), beginAtZero: true, ticks: { callback: v => fmtEntero(v) + ' d' } },
+                y: { grid: { display: false }, border: { display: false } } },
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: c => `${fmtDec(c.raw)} días` } },
+                 etiquetasBarras: { mostrar: true, formato: v => fmtDec(v) + ' d' } },
+    },
+  });
+}
+
+// Mapa de calor de las correlaciones (triángulo inferior). Color: azul negativo, gris 0, rojo positivo (|r| ≥ 0,7 = tope).
+function mezclar(hex1, hex2, t) {
+  const rgb = h => [1, 3, 5].map(k => parseInt(h.slice(k, k + 2), 16));
+  const a = rgb(hex1), b = rgb(hex2);
+  return `rgb(${a.map((x, k) => Math.round(x + (b[k] - x) * t)).join(',')})`;
+}
+
+function mapaCorrelaciones() {
+  const { variables, matriz } = MODELO.correlaciones;
+  const [neg, medio, pos] = COLOR.diverge;
+  const celda = r => (r < 0 ? mezclar(medio, neg, Math.min(-r / 0.7, 1)) : mezclar(medio, pos, Math.min(r / 0.7, 1)));
+  const texto = r => (Math.abs(r) < 0.005 ? '0' : fmtDec(r, 2).replace('0,', ',').replace('-', '−'));
+  let html = '<tbody>';
+  for (let i = 1; i < variables.length; i++) {
+    html += `<tr><th scope="row">${variables[i]}</th>`;
+    for (let j = 0; j < variables.length - 1; j++) {
+      if (j >= i) { html += '<td class="vacia"></td>'; continue; }
+      const r = matriz[i][j];
+      html += `<td style="background:${celda(r)};color:${Math.abs(r) > 0.45 ? '#fff' : COLOR.tinta}"` +
+              ` class="${j === 0 ? 'con-estadia' : ''}" title="${variables[i]} × ${variables[j]}: r = ${texto(r)}">${texto(r)}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody><tfoot><tr><th></th>' +
+    variables.slice(0, -1).map((v, j) => `<th class="${j === 0 ? 'con-estadia' : ''}"><span>${v}</span></th>`).join('') + '</tr></tfoot>';
+  document.getElementById('mapa-correlaciones').innerHTML = html;
+}
+
+// % de cambio en la estadía de cada variable; las que pasan de 100 % se cortan en el eje y se escribe su valor real
+const TOPE_COEF = 100;
+
+function graficoCoeficientes() {
+  const filas = MODELO.coeficientes.map(c => ({ ...c, cambio: (Math.exp(c.b) - 1) * 100 }))
+    .sort((a, b) => b.cambio - a.cambio);
+  const color = f => (f.p >= 0.05 ? COLOR.gris : f.cambio > 0 ? COLOR.naranjo : COLOR.azul);
+  const pct = x => `${Math.round(x) === 0 ? '' : x > 0 ? '+' : '−'}${fmtDec(Math.abs(x), 0)} %`;
+  dibujarGrafico('g-coef', {
+    type: 'bar',
+    data: { labels: filas.map(f => f.nombre),
+            datasets: [{ data: filas.map(f => Math.min(f.cambio, TOPE_COEF)), backgroundColor: filas.map(color),
+                         borderRadius: 3, barPercentage: 0.75 }] },
+    options: {
+      indexAxis: 'y', maintainAspectRatio: false,
+      layout: { padding: { right: 72 } },
+      scales: { x: { ...ejeLimpio(), min: -50, max: TOPE_COEF, ticks: { callback: v => fmtEntero(v) + ' %' } },
+                y: { grid: { display: false }, border: { display: false }, ticks: { autoSkip: false, font: { size: 11.5 } } } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => {
+          const f = filas[c.dataIndex];
+          return [`Cambio en la estadía: ${pct(f.cambio)}`,
+                  `IC 95 %: ${pct((Math.exp(f.inf) - 1) * 100)} a ${pct((Math.exp(f.sup) - 1) * 100)}`,
+                  f.p < 0.05 ? 'Diferencia significativa' : 'Sin diferencia significativa (p ≥ 0,05)'];
+        } } },
+        etiquetasBarras: { mostrar: true, formato: (v, j) => pct(filas[j].cambio) + (filas[j].cambio > TOPE_COEF ? ' →' : '') },
+      },
+    },
+  });
+}
+
+function mostrarCalidadModelo() {
+  const m = MODELO.metricas;
+  document.getElementById('calidad-modelo').innerHTML = [
+    ['R² (escala log)', fmtDec(m.R2_log, 2), `explica el ${fmtDec(m.R2_log * 100, 0)} % de la variación (primer modelo: ` +
+     `${fmtDec(m.R2_log_modelo_anterior, 2)}); en días, ${fmtDec(m.R2_dias, 2)}`],
+    ['Error absoluto medio', `${fmtDec(m.MAE_dias)} días`, `sin modelo (mediana para todos): ${fmtDec(m.MAE_dias_sin_modelo)} días`],
+    ['Egresos', fmtEntero(MODELO.n_entrenamiento + MODELO.n_prueba),
+     `${fmtEntero(MODELO.n_entrenamiento)} para ajustar y ${fmtEntero(MODELO.n_prueba)} para evaluar`],
+  ].map(([nombre, valor, detalle]) =>
+    `<div><span class="kpi-nombre">${nombre}</span><div class="kpi-valor">${valor}</div><div class="kpi-ref">${detalle}</div></div>`).join('');
+}
+
+function dibujarModelo() {
+  if (!MODELO) return;
+  actualizarCalculadora();
+  graficoCoeficientes();
+  mapaCorrelaciones();
+}
+
+// ---------------------------------------------------------------- alto contraste
+// La preferencia se guarda en el navegador; sin preferencia guardada se sigue la del sistema (prefers-contrast).
+// index.html ya marca <html data-contraste> antes de dibujar, para que no parpadee.
+const CLAVE_CONTRASTE = 'dashboard-cup-contraste';
+const altoContraste = () => document.documentElement.dataset.contraste === 'alto';
+
+function conectarContraste() {
+  const boton = document.getElementById('alto-contraste');
+  boton.setAttribute('aria-pressed', String(altoContraste()));
+  boton.addEventListener('click', () => {
+    const alto = !altoContraste();
+    document.documentElement.dataset.contraste = alto ? 'alto' : 'normal';
+    boton.setAttribute('aria-pressed', String(alto));
+    try { localStorage.setItem(CLAVE_CONTRASTE, alto ? 'alto' : 'normal'); } catch (e) { /* sin almacenamiento */ }
+    leerColores();
+    actualizarTodo();
+    dibujarModelo();
+  });
+}
+
 // ---------------------------------------------------------------- inicio
 function actualizarTodo() {
   actualizarKPI();
@@ -828,12 +1158,21 @@ function actualizarTodo() {
   graficoMensual();
   graficoSexo();
   graficoEdad();
+  graficoComorbilidades();
+  graficoMortalidadComorb();
+  graficoCharlson();
   actualizarTerritorio();
   actualizarTabla();
   actualizarDescargas();
 }
 
+leerColores();
 llenarFiltros();
 conectarFiltros();
+conectarContraste();
 actualizarTodo();
+if (llenarCalculadora()) {
+  mostrarCalidadModelo();
+  dibujarModelo();
+}
 // TODO: versión para celular
