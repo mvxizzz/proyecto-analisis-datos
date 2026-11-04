@@ -3,8 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard CUP Chile (v0.1)</title>
+  <title>Dashboard CUP Chile (v0.2)</title>
   <link rel="stylesheet" href="css/estilos.css">
+  <script>
+    // Alto contraste antes de dibujar (evita el parpadeo): preferencia guardada o, si no hay, la del sistema
+    (function () {
+      var modo = null;
+      try { modo = localStorage.getItem('dashboard-cup-contraste'); } catch (e) { /* sin almacenamiento */ }
+      if (!modo) modo = window.matchMedia && matchMedia('(prefers-contrast: more)').matches ? 'alto' : 'normal';
+      document.documentElement.dataset.contraste = modo;
+    })();
+  </script>
 </head>
 <body>
 
@@ -34,7 +43,11 @@
       <svg viewBox="0 0 24 24"><path d="M5 4h10a4 4 0 0 1 4 4v13H9a4 4 0 0 1-4-4z"/></svg>Metodología</button>
   </nav>
 
-  <div class="lema">Evidencia hospitalaria<br>para la gestión oncológica</div>
+  <div class="extremo">
+    <div class="lema">Evidencia hospitalaria<br>para la gestión oncológica</div>
+    <button type="button" id="alto-contraste" class="boton-contraste" aria-pressed="false">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>Alto contraste</button>
+  </div>
 </header>
 
 <main>
@@ -157,7 +170,29 @@
           <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Comparación con metastásicos</h2>
           <p class="nota" id="nota-tabla"></p>
           <table class="tabla" id="tabla-comparacion"></table>
-          <p class="nota pie-tabla">Sev. 3 = % con severidad GRD máxima · Peso = peso GRD medio · Var. = egresos frente al período anterior del mismo largo</p>
+          <p class="nota pie-tabla">Sev. 3 = % con severidad GRD máxima · Ch. ≥ 2 = % con índice de Charlson de 2 o más · Peso = peso GRD medio · Var. = egresos frente al período anterior del mismo largo</p>
+        </div>
+      </div>
+
+      <div class="fila-c">
+        <div class="tarjeta panel">
+          <h2><svg viewBox="0 0 24 24"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></svg>Comorbilidades más frecuentes</h2>
+          <p class="nota" id="nota-comorb"></p>
+          <div class="caja-grafico alto-comorb"><canvas id="g-comorb"></canvas></div>
+        </div>
+        <div class="tarjeta panel">
+          <h2><svg viewBox="0 0 24 24"><polyline points="2 12 6 12 9 4 15 20 18 12 22 12"/></svg>Mortalidad según comorbilidad</h2>
+          <p class="nota" id="nota-mortcomorb"></p>
+          <div class="caja-grafico alto-comorb"><canvas id="g-mortcomorb"></canvas></div>
+        </div>
+      </div>
+
+      <div class="fila-d">
+        <div class="tarjeta panel">
+          <h2><svg viewBox="0 0 24 24"><path d="M4 20V14"/><path d="M10 20V10"/><path d="M16 20V6"/><path d="M3 21h18"/></svg>Índice de Charlson</h2>
+          <p class="nota" id="nota-charlson"></p>
+          <div class="caja-grafico alto-charlson"><canvas id="g-charlson"></canvas></div>
+          <p class="nota pie-tabla">Suma 1 a 6 puntos por cada enfermedad crónica registrada (Quan 2005), sin contar el cáncer ni la metástasis. Pasa el mouse para ver la mortalidad de cada categoría.</p>
         </div>
       </div>
     </div>
@@ -175,19 +210,43 @@
   </div>
 </section>
 
-<!-- ===================== PESTAÑAS EN DESARROLLO ===================== -->
+<!-- ===================== ANÁLISIS: MODELO DE ESTADÍA ===================== -->
 <section id="analisis" class="seccion">
-  <div class="tarjeta en-desarrollo">
-    <h2>Análisis · en desarrollo</h2>
-    <p>Esta pestaña mostrará el detalle clínico del CUP. Planificado para la semana 11:</p>
-    <ul>
-      <li>Trayectoria del paciente: por dónde llega, qué especialidad lo atiende y cómo sale (diagrama de flujo).</li>
-      <li>Sitios de metástasis y mortalidad según cada sitio.</li>
-      <li>Diagnóstico principal de las hospitalizaciones por CUP.</li>
-    </ul>
-    <p class="nota">Los gráficos ya están hechos en el notebook del proyecto (preguntas P2, P4 y P5); falta pasarlos al dashboard.</p>
+  <div id="contenido-modelo">
+    <div class="fila-modelo">
+      <div class="tarjeta panel" id="calculadora">
+        <h2><svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8"/><path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/><path d="M8 15h.01"/><path d="M12 15h.01"/><path d="M16 15h.01"/><path d="M8 19h8"/></svg>Calculadora de estadía esperada</h2>
+        <p class="nota">Elige un perfil de paciente y el modelo calcula cuántos días dura en promedio su hospitalización. Es un promedio para pacientes con ese perfil, no un pronóstico individual. No depende de los filtros de Inicio.</p>
+        <!-- Selectores y casillas: los arma app.js a partir del modelo (DATOS.modelo.entradas) -->
+        <div class="campos-calculadora" id="campos-calculadora"></div>
+        <div id="casillas-calculadora"></div>
+        <div class="resultado-calculadora">
+          <div id="c-resultado"></div>
+          <div class="caja-grafico alto-perfil"><canvas id="g-perfil" aria-label="Estadía esperada del mismo perfil en cada diagnóstico"></canvas></div>
+        </div>
+      </div>
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M12 7h7"/><path d="M12 12H6"/><path d="M12 17h4"/></svg>Qué alarga o acorta la estadía</h2>
+        <p class="nota">% de cambio en los días de estadía por cada característica, con todas las demás iguales (regresión lineal de log(1 + días)). Naranjo: la alarga; azul: la acorta; gris: sin diferencia significativa. Pasa el mouse para ver el IC 95 %.</p>
+        <div class="caja-grafico alto-coef"><canvas id="g-coef"></canvas></div>
+        <p class="nota pie-tabla">Las barras con → pasan de +100 %: su valor real está escrito. Referencias: CUP, 60–69 años, hombre, ingreso programado u otro, llega desde urgencia, motivo el propio cáncer y gravedad baja.</p>
+      </div>
+    </div>
+    <div class="tarjeta panel calidad">
+      <h2><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Calidad del modelo (egresos que no vio)</h2>
+      <div class="calidad-modelo" id="calidad-modelo"></div>
+      <p class="nota">El modelo ordena bien a los pacientes (los de estadía corta y larga), pero cada paciente varía mucho: sirve para comparar perfiles y planificar camas. Solo usa datos del ingreso; lo que pasa durante la hospitalización (UCI, cirugías, complicaciones) no está. Detalle en el notebook, pregunta P13.</p>
+    </div>
+    <div class="tarjeta panel calidad">
+      <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Correlaciones entre las variables del ingreso</h2>
+      <p class="nota">Correlación de Pearson (r, de −1 a 1) entre cada par de variables; las categóricas como 0/1. Rojo: suben juntas; azul: cuando una sube, la otra baja; gris: sin relación. La primera columna (recuadro) es la relación con la estadía, la variable que el modelo predice. Con este mapa se eligieron las variables del modelo. Pasa el mouse sobre una casilla para ver el par.</p>
+      <div class="caja-correlaciones"><table class="mapa-correlaciones" id="mapa-correlaciones"></table></div>
+    </div>
   </div>
+  <p class="nota pendiente">Pendiente para la semana 11: trayectoria del paciente (diagrama de flujo) y diagnóstico principal de las hospitalizaciones por CUP (notebook, preguntas P2 y P5).</p>
 </section>
+
+<!-- ===================== PESTAÑAS EN DESARROLLO ===================== -->
 
 <section id="comparaciones" class="seccion">
   <div class="tarjeta en-desarrollo">
@@ -275,11 +334,25 @@
       <li><b>Estancia:</b> días entre el ingreso y el alta; se usa la mediana.</li>
       <li><b>Peso GRD:</b> consumo relativo de recursos de la hospitalización.</li>
     </ul>
+    <h3>Comorbilidades</h3>
+    <ul>
+      <li>Se buscan en los diagnósticos 2 a 35 (el diagnóstico 1 es el motivo de la hospitalización, no un antecedente).</li>
+      <li><b>Comorbilidades frecuentes:</b> hipertensión (I10–I15), diabetes (E10–E14), hipotiroidismo (E03), enfermedad renal crónica (N18), EPOC (J43–J44), cardiopatía isquémica (I20–I25), insuficiencia cardíaca (I50), fibrilación auricular (I48), obesidad (E66) y hepatopatía crónica (K70, K73, K74).</li>
+      <li><b>Índice de Charlson:</b> códigos CIE-10 de Quan et al. (2005), con sus pesos de 1 a 6 puntos, sin los componentes de cáncer y metástasis porque todos los pacientes del estudio los tienen. Si hay diabetes con complicaciones no se suma la simple, y lo mismo con la hepatopatía.</li>
+    </ul>
+    <h3>Modelo de estadía (pestaña Análisis)</h3>
+    <ul>
+      <li>Regresión lineal múltiple de log(1 + días de estadía) con errores robustos (HC3). Las variables categóricas entran como dummies con una categoría de referencia.</li>
+      <li>Solo variables conocidas al ingreso, elegidas con el mapa de correlaciones: grupo, edad, sexo, tipo de ingreso, desde dónde llega, motivo de la hospitalización (diagnóstico principal), gravedad GRD, cada sitio de metástasis, las 10 comorbilidades, FONASA A o B, hospital de la Región Metropolitana y años de pandemia.</li>
+      <li>Se ajusta con 80 de cada 100 egresos al azar y se evalúa con los otros 20. Para volver a días se usa el factor de <i>smearing</i> de Duan.</li>
+      <li>No incluye si el paciente muere (no se sabe al ingresar). Detalle y gráficos en el notebook, pregunta P13.</li>
+    </ul>
     <h3>Limitaciones</h3>
     <ul>
       <li>Solo muertes dentro del hospital y solo hospitales públicos.</li>
       <li>La región y el Servicio de Salud son los del hospital según el DEIS (desde su código), no los del domicilio del paciente. La columna SERVICIO_SALUD de la base no coincide con el hospital en cerca del 5 % de los egresos, por eso no se usa; esto mueve el 1 % de los egresos de región respecto del notebook.</li>
       <li>Hospital: la base trae solo el código del establecimiento; el nombre sale del listado oficial del DEIS y se corroboró con otras dos fuentes del MINSAL (detalle en BD/referencias). El código 107101 corresponde al Hospital San Martín de Quillota hasta octubre de 2022 y luego al Biprovincial Quillota-Petorca.</li>
+      <li>Las comorbilidades solo cuentan si quedaron codificadas en el egreso: puede haber subregistro.</li>
       <li>El ID del paciente cambia entre 2020 y 2021: los pacientes únicos se cuentan dentro de cada año (en un rango que cruce 2020–2021 un mismo paciente puede contarse dos veces).</li>
     </ul>
   </div>
@@ -300,7 +373,7 @@
   <button id="descargar" class="boton-descarga">
     <svg viewBox="0 0 24 24"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>Descargar tabla (CSV)</button>
 </footer>
-<p class="creditos">v0.1 | Proyecto Análisis de Datos e Inferencia Estadística UDD 2026-2 | Bastián Campos, Maximiliano Mella, Agustín Tapia</p>
+<p class="creditos">v0.2 | Proyecto Análisis de Datos e Inferencia Estadística UDD 2026-2 | Bastián Campos, Maximiliano Mella, Agustín Tapia</p>
 
 <div id="tooltip-mapa" class="tooltip"></div>
 
