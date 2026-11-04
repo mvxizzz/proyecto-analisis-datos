@@ -29,6 +29,12 @@ function leerColores() {
   };
   RAMPA_MAPA = [1, 2, 3, 4].map(k => v(`--mapa-${k}`));
   Chart.defaults.color = COLOR.texto;
+  // Los cuadros emergentes de Chart.js son negros por defecto: en alto contraste (fondo negro) llevan borde blanco
+  const alto = document.documentElement.dataset.contraste === 'alto';
+  const tip = Chart.defaults.plugins.tooltip;
+  tip.backgroundColor = alto ? '#000000' : 'rgba(0, 0, 0, 0.8)';
+  tip.borderColor = alto ? '#ffffff' : 'rgba(0, 0, 0, 0)';
+  tip.borderWidth = alto ? 1 : 0;
 }
 
 // Estado de los filtros
@@ -698,7 +704,7 @@ function graficoSexo() {
         legend: { position: 'bottom', labels: { boxWidth: 12,
           generateLabels: chart => chart.data.labels.map((l, k) => ({
             text: `${l}: ${fmtEntero(chart.data.datasets[0].data[k])} (${total ? fmtDec(chart.data.datasets[0].data[k] / total * 100) : 0} %)`,
-            fillStyle: chart.data.datasets[0].backgroundColor[k], strokeStyle: COLOR.tarjeta, index: k })) } },
+            fillStyle: chart.data.datasets[0].backgroundColor[k], strokeStyle: COLOR.tarjeta, fontColor: COLOR.texto, index: k })) } },
         tooltip: { callbacks: { label: c => `${c.label}: ${fmtEntero(c.raw)} (${fmtDec(c.raw / total * 100)} %)` } },
       },
     },
