@@ -14,7 +14,7 @@ Doble clic en `index.html`. Funciona sin internet: la librería de gráficos y l
 - **Comorbilidades (v0.2):** paneles de las 10 comorbilidades más frecuentes, de la mortalidad según cada comorbilidad (con "sin ninguna de las 10" como referencia) y del índice de Charlson (sin cáncer). La tabla comparativa suma la columna "Ch. ≥ 2" (% con Charlson de 2 o más).
 - **Vista "CUP vs. metastásicos" (v0.2):** cada cáncer tiene su propio color (los mismos del notebook, validados para daltonismo): el CUP en barras y cada cáncer como un punto, con leyenda.
 - **Pestaña Análisis (v0.2):** calculadora de estadía esperada según el perfil del paciente, gráfico de coeficientes (qué alarga o acorta la estadía), calidad del modelo y mapa de calor de las correlaciones con que se eligieron las variables. Usa la regresión lineal de la pregunta P13 del notebook; el formulario de la calculadora se arma solo a partir de `modelo_estadia.json`.
-- **Alto contraste (v0.2):** botón en el encabezado. Cambia los colores de la página, los gráficos y el mapa; la preferencia queda guardada en el navegador y, si no hay una guardada, sigue la del sistema.
+- **Alto contraste (v0.2):** botón en el encabezado. Pasa la página a fondo negro con texto y bordes blancos, y aclara los colores de los gráficos y del mapa (en el mapa, más claro = más egresos); la preferencia queda guardada en el navegador y, si no hay una guardada, sigue la del sistema.
 - **Pestaña Descargas:** egresos filtrados (CSV, ahora con comorbilidades e índice de Charlson), resumen por grupo (CSV) y captura del dashboard en PDF.
 
 ## Pendiente

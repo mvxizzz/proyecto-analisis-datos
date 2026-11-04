@@ -43,45 +43,49 @@
   --foco: 2px;
 }
 
-/* Alto contraste: texto negro sobre blanco, bordes oscuros, colores más saturados (texto ≥ 7:1, marcas ≥ 4,5:1) */
+/* Alto contraste: modo oscuro de máximo contraste. Fondo negro, texto blanco, bordes blancos y colores más claros y
+   saturados para que cada marca se distinga sobre el negro (texto ≥ 15:1, marcas ≥ 4,5:1). */
 :root[data-contraste="alto"] {
-  --violeta: #2b1d80;
-  --violeta-claro: #6a5cc4;
-  --violeta-fondo: #e2ddf7;
-  --naranjo: #b23c0c;
-  --naranjo-fondo: #fbe1d5;
-  --sube-mal: #9e3208;
-  --azul: #0b4fa8;
-  --gris: #4d4b45;
-  --apagado: #6b6960;
-  --fondo: #ffffff;
-  --fondo-suave: #ecebf3;
-  --hover: #dcdae8;
-  --deshabilitado: #e4e2ec;
-  --resaltado: #ffd866;
-  --tarjeta: #ffffff;
-  --borde: #1c1a2e;
-  --linea-tabla: #8b889c;
-  --grilla: #a9a6b8;
-  --tinta: #000000;
-  --texto-2: #1c1a2e;
-  --texto-3: #33304a;
+  color-scheme: dark;         /* selectores, casillas y barras de desplazamiento nativos también en oscuro */
+  --violeta: #b7a8ff;
+  --violeta-claro: #7b6bd6;
+  --violeta-fondo: #2a2166;
+  --naranjo: #ff9466;
+  --naranjo-fondo: #4a1d0a;
+  --sube-mal: #ff9a70;
+  --azul: #6db3ff;
+  --gris: #bdbab2;
+  --apagado: #8f8d86;
+  --fondo: #000000;
+  --fondo-suave: #1c1c1c;
+  --hover: #2e2e2e;
+  --deshabilitado: #262626;
+  --resaltado: #6b5400;
+  --tarjeta: #000000;
+  --borde: #ffffff;
+  --linea-tabla: #6b6b6b;
+  --grilla: #5a5a5a;
+  --tinta: #ffffff;
+  --texto-2: #f5f5f5;
+  --texto-3: #d4d4d4;
   --trazo-mapa: #000000;
-  --mapa-1: #d9d4f3;
-  --mapa-2: #9c90e0;
-  --mapa-3: #5a4bc0;
-  --mapa-4: #1f1266;
-  --g-cup: #4a3aa7;           /* versiones más oscuras: todas ≥ 3:1 sobre blanco */
-  --g-pulmon: #08805a;
-  --g-colorrectal: #9a6a00;
-  --g-mama: #c0306e;
-  --g-prostata: #1c5cab;
-  --g-gastrico: #1f6b00;
-  --diverge-neg: #0b2f63;
-  --diverge-medio: #ffffff;
-  --diverge-pos: #7d1d1c;
+  --mapa-1: #34306a;          /* sobre negro la rampa se invierte: más claro = más egresos */
+  --mapa-2: #5d52b8;
+  --mapa-3: #9185e8;
+  --mapa-4: #d2caff;
+  --g-cup: #b7a8ff;
+  --g-pulmon: #3fe0a0;
+  --g-colorrectal: #ffc53a;
+  --g-mama: #ff8fc0;
+  --g-prostata: #5eaaff;
+  --g-gastrico: #52d452;
+  --diverge-neg: #1c64c2;     /* los números de las casillas van en blanco: estos tonos deben ser medios */
+  --diverge-medio: #3a3a3a;
+  --diverge-pos: #c5322f;
   --foco: 3px;
 }
+:root[data-contraste="alto"] .aviso { background: #000; color: #fff; border-bottom: 1px solid #fff; }
+:root[data-contraste="alto"] .tooltip { background: #000; color: #fff; border: 1px solid #fff; }
 
 :focus-visible { outline: var(--foco) solid var(--violeta); outline-offset: 2px; }
 
@@ -117,7 +121,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .marca { display: flex; align-items: center; gap: 12px; }
 .logo {
   width: 46px; height: 46px; border-radius: 10px;
-  background: var(--violeta); color: white;
+  background: var(--violeta); color: var(--tarjeta);
   display: grid; place-items: center;
 }
 .logo svg { width: 26px; height: 26px; }
