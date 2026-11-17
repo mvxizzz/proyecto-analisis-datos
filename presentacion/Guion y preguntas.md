@@ -27,7 +27,7 @@ Orden de intervención: Max → Bastián → Agustín → Renato → Max (dashbo
 "Nuestro objetivo es medir cuánto pesa el CUP, cómo lo atiende la red y si le va peor que a otros cánceres con metástasis. Lo ordenamos en trece preguntas y cinco bloques: cuánto pesa, quién es el paciente, cómo lo atiende la red, si le va peor, y con qué enfermedades llega. Cada pregunta termina en un panel del dashboard. Bastián parte contándoles de dónde salieron los datos."
 
 ### 4 · Datos — Bastián (45 s)
-"Usamos las bases de egresos hospitalarios de FONASA entre 2019 y 2025. Cada fila es una hospitalización. Son casi siete millones de filas. De ahí nos quedamos con 60.816 hospitalizaciones de adultos en los grupos que estudiamos, y 3.889 son CUP. Los datos vienen casi completos. Una limitación importante: son solo hospitales públicos y solo cuenta las muertes ocurridas dentro del hospital."
+"Usamos las bases de egresos hospitalarios de FONASA entre 2019 y 2025. Cada fila es una hospitalización. Son casi siete millones de filas. Hicimos una restricción de datos: solo adultos, así que dejamos fuera a los pacientes de 0 a 17 años. Quedan 60.816 hospitalizaciones en los grupos que estudiamos, y 3.889 son CUP. Ojo: son hospitalizaciones, no personas. Esas 3.889 son de 3.520 pacientes, porque algunos se hospitalizan más de una vez. Los datos vienen casi completos. Una limitación importante: son solo hospitales públicos y solo cuenta las muertes ocurridas dentro del hospital."
 
 ### 5 · Grupos de estudio — Bastián (35 s)
 "El CUP es el código C80.0. Lo comparamos con cinco cánceres que también tienen metástasis, pero donde sí se sabe dónde empezó: pulmón, colorrectal, mama, próstata y gástrico. Dejamos aparte el código C80.9, que es otro tipo de categoría, y lo usamos solo para revisar que la conclusión no cambia."
@@ -51,24 +51,26 @@ Orden de intervención: Max → Bastián → Agustín → Renato → Max (dashbo
 "Son tres mapas: más oscuro significa más alto. En Antofagasta y Los Ríos, oncología atiende a 17 de cada 100 pacientes CUP; en la Región Metropolitana, a 2. La mortalidad cambia poco entre regiones, pero la atención por oncología depende de cómo se organiza cada red. En el extremo sur el CUP pesa el doble que en el resto del país."
 
 ### 12 · Comorbilidades y mortalidad — Renato (40 s)
-"Una comorbilidad es otra enfermedad que el paciente ya tenía, como diabetes o hipertensión. Aquí vemos cuántos pacientes mueren según las enfermedades que tienen. En el CUP, los que no tienen ninguna de las diez enfermedades que medimos mueren 18 de cada 100; con hepatopatía crónica, que es daño crónico del hígado, mueren 42. A más enfermedades, más muertes. Max les muestra ahora todo esto en el dashboard."
+"Una comorbilidad es una enfermedad crónica que el paciente tiene además del cáncer y que no es el motivo de la hospitalización, como la diabetes o la hipertensión. La buscamos en los diagnósticos secundarios; el cáncer y sus metástasis no cuentan. Aquí vemos cuántos pacientes mueren según las enfermedades que tienen. En el CUP, los que no tienen ninguna de las diez enfermedades que medimos mueren 18 de cada 100; con hepatopatía crónica, que es daño crónico del hígado, mueren 42. A más enfermedades, más muertes. Max les muestra ahora todo esto en el dashboard."
 
 ### 13 · Dashboard en vivo — Maximiliano (unos 4 min)
 Entrada: "Todo esto ya está en un dashboard que funciona. Se los muestro en vivo, pestaña por pestaña." Dejar la diapositiva unos segundos y pasar al navegador (abierto de antes, filtro en 2025).
 
 Recorrido sugerido, una frase por panel:
 
-- **Inicio · filtros:** "Arriba se elige año, región, Servicio de Salud, hospital, sexo, edad y tipo de ingreso; todo lo de abajo cambia con eso."
-- **Indicadores:** "Cinco números: egresos, pacientes, mortalidad, estadía y peso GRD, con su cambio frente al período anterior."
+- **Inicio · filtros:** "Arriba se elige año, zona, región, Servicio de Salud, hospital, sexo, edad y tipo de ingreso; todo lo de abajo cambia con eso."
+- **Ayudas (i):** "Cada indicador y cada gráfico tiene este botón: al pasar el mouse explica qué mide y cómo se calcula." Mostrar el de Pacientes únicos.
+- **Indicadores:** "Cinco números: egresos, pacientes, mortalidad, estadía y peso GRD, con su diferencia porcentual frente al período anterior. Los pacientes son menos que los egresos porque un paciente puede hospitalizarse varias veces."
 - **Botón 'CUP vs. metastásicos':** "La barra es el CUP y cada punto de color es uno de los otros cinco cánceres."
 - **Sitios de metástasis:** "Dónde está diseminado el cáncer; en el CUP, hígado, hueso y peritoneo encabezan."
 - **Evolución mensual:** "Cuántas hospitalizaciones hay cada mes, comparadas con el año anterior."
 - **Sexo y edad:** "Quién es el paciente: mitad hombres y mitad mujeres, sobre todo entre 60 y 79 años."
-- **Tabla comparativa:** "Los seis grupos lado a lado; el CUP tiene de las mortalidades más altas."
+- **Tabla comparativa:** "Los seis grupos lado a lado; el CUP tiene de las mortalidades más altas. Dif. % es la diferencia porcentual de egresos frente al período anterior."
 - **Comorbilidades:** "Las diez enfermedades crónicas más frecuentes; hipertensión y diabetes encabezan."
 - **Mortalidad según comorbilidad:** "Cuántos mueren de cada 100 con cada enfermedad, frente a los que no tienen ninguna."
 - **Índice de Charlson:** "Un puntaje que resume cuántas enfermedades crónicas tiene el paciente; a más puntos, más muertes."
-- **Mapa:** "Más oscuro, más egresos; al hacer clic en una región, se filtra por ella."
+- **Territorio:** "Chile dividido en norte, centro y sur. Si elijo una zona, el mapa muestra solo sus regiones, coloreadas por egresos o por mortalidad; al hacer clic en una región, se filtra por ella."
+- **Comparaciones (si hay tiempo):** "Las tres zonas lado a lado, el CUP frente a los metastásicos."
 - **Análisis · calculadora:** "Elijo un perfil y el modelo da la estadía esperada: 15,6 días en el perfil base, y la compara con los otros cánceres."
 - **Coeficientes:** "Qué alarga la estadía: sobre todo la gravedad alta y el ingreso por urgencia."
 - **Calidad del modelo:** "Explica cerca del 38 % de la variación; sirve para comparar perfiles y planificar camas, no para un paciente."
@@ -124,6 +126,15 @@ Es una categoría de cáncer sin especificar, distinta. La analizamos aparte com
 
 **¿Por qué solo hasta 2025 y qué pasa con la edad?**
 En 2025 la edad viene en tramos de 5 años, no exacta, y excluimos el tramo de 15 a 19. Está en las limitaciones del notebook.
+
+**¿Pacientes únicos y egresos son lo mismo?**
+No. Un egreso es una hospitalización; un paciente puede tener varias. En 2019–2025 hay 3.889 egresos CUP de 3.520 pacientes (1,1 por paciente). El total del período no es la suma de los años: sumando año por año saldrían 3.573, porque quien se hospitaliza en dos años se contaría dos veces. Límite: el ID cifrado cambia entre 2020 y 2021.
+
+**¿Por qué dicen "restricción de datos" y no "limpieza"?**
+Porque sacar a los menores de 18 años no corrige errores: es una decisión de alcance del estudio. La limpieza propiamente tal fue mínima (menos de 0,02 % de faltantes).
+
+**¿Cómo dividieron Chile en norte, centro y sur?**
+Norte: de Arica y Parinacota a Coquimbo. Centro: Valparaíso, Metropolitana, O'Higgins y Maule. Sur: de Ñuble a Magallanes. Ñuble va al sur porque hasta 2018 era parte del Biobío. La zona es la del hospital, no la del domicilio.
 
 **¿Los datos tienen valores faltantes o errores?**
 Menos de 0,02 % de faltantes. Las estadías muy largas las dejamos, y por eso usamos medianas.
@@ -216,7 +227,7 @@ Pruebas de hipótesis formales entre el CUP y cada grupo, ANOVA por Servicio de 
 ## Consejos para el día
 - Digan primero la conclusión y después el número. "El CUP muere tanto como pulmón: 22 de cada 100."
 - Si no saben una respuesta: "Eso no lo medimos, pero lo anotamos como limitación." Es mejor que inventar.
-- Ensayen la demostración del dashboard con el filtro del año 2025 y los botones "CUP vs. metastásicos" y "Análisis". Dejen el navegador abierto antes de empezar y cronométrenla: si pasa de 5 minutos, recorten Descargas y Metodología. Las pestañas Comparaciones y Territorio están en desarrollo: no las abran.
+- Ensayen la demostración del dashboard con el filtro del año 2025 y los botones "CUP vs. metastásicos" y "Análisis". Dejen el navegador abierto antes de empezar y cronométrenla: si pasa de 5 minutos, recorten Descargas y Metodología. Muestren Territorio con una zona elegida (el mapa se acerca a sus regiones); Comparaciones, solo si sobra tiempo.
 - Cuiden el tiempo: las diapositivas 4 a 6 y la demostración son las más fáciles de alargar. Con cuatro personas, cada traspaso es una frase corta ("ahora Bastián"); no más.
 - Practiquen los traspasos: la diapositiva cambia justo cuando el siguiente empieza a hablar.
 - Si alguien se bloquea, la persona que presentó esa parte retoma; las preguntas las toma quien las respondió en la tabla.

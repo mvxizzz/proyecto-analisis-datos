@@ -1,4 +1,4 @@
-// Dashboard CUP Chile (v0.2): pestañas Inicio, Análisis (modelo de estadía) y Descargas
+// Dashboard CUP Chile (v0.3): pestañas Inicio, Análisis (modelo de estadía) y Descargas
 // Los datos vienen de datos/datos.js (generado con preparar_datos.py): una posición por egreso en cada arreglo.
 
 const E = DATOS.egresos;
@@ -9,12 +9,22 @@ const G_C809 = 1;         // C80.9 (solo si el filtro de diagnóstico lo incluye
 const CODIGO_SITIO = ['C78.7', 'C78.6', 'C78.0', 'C79.5', 'C79.3', 'C77', 'C78.2', 'C79.7'];
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
+// Zonas del país (códigos de región del DEIS, de norte a sur). Ñuble va al sur: hasta 2018 era parte del Biobío.
+const ZONAS = {
+  norte: { nombre: 'Norte', regiones: [15, 1, 2, 3, 4] },
+  centro: { nombre: 'Centro', regiones: [5, 13, 6, 7] },
+  sur: { nombre: 'Sur', regiones: [16, 8, 9, 14, 10, 11, 12] },
+};
+const ZONA_DE_REGION = {};
+for (const [z, d] of Object.entries(ZONAS)) d.regiones.forEach(r => { ZONA_DE_REGION[r] = z; });
+const regionEnZona = (region, zona) => !zona || ZONA_DE_REGION[region] === zona;
+
 // Los colores se leen de las variables CSS (css/estilos.css), así cambian con el modo de alto contraste.
 // gris = contexto (año anterior, referencias); cada grupo tiene su color (COLOR.grupos, en el orden de DATOS.grupos).
 // RAMPA_MAPA: más oscuro = más egresos. DIVERGE: azul (negativo), gris (0), rojo (positivo) para las correlaciones.
 let COLOR = {};
-let RAMPA_MAPA = [];
-const CORTES_MAPA = [15, 30, 60];   // cortes como en el boceto de Figma
+let RAMPA_MAPA = [];     // egresos: verde azulado (territorio)
+let RAMPA_MUERTE = [];   // mortalidad en el mapa: naranjo (muerte)
 
 function leerColores() {
   const css = getComputedStyle(document.documentElement);
@@ -22,12 +32,14 @@ function leerColores() {
   COLOR = {
     violeta: v('--violeta'), violetaClaro: v('--violeta-claro'), gris: v('--gris'), grilla: v('--grilla'),
     texto: v('--texto-2'), tinta: v('--tinta'), tarjeta: v('--tarjeta'), naranjo: v('--naranjo'), azul: v('--azul'),
-    apagado: v('--apagado'),
+    apagado: v('--apagado'), muerte: v('--s-muerte'),
     // CUP, CUP potencial (C80.9, mismo color que el CUP), Pulmón, Colorrectal, Mama, Próstata, Gástrico
     grupos: ['cup', 'cup', 'pulmon', 'colorrectal', 'mama', 'prostata', 'gastrico'].map(g => v(`--g-${g}`)),
     diverge: ['neg', 'medio', 'pos'].map(p => v(`--diverge-${p}`)),
   };
   RAMPA_MAPA = [1, 2, 3, 4].map(k => v(`--mapa-${k}`));
+  RAMPA_MUERTE = [1, 2, 3, 4].map(k => v(`--muerte-${k}`));
+  COLOR.zonas = ['norte', 'centro', 'sur'].map(z => v(`--z-${z}`));
   Chart.defaults.color = COLOR.texto;
   // Los cuadros emergentes de Chart.js son negros por defecto: en alto contraste (fondo negro) llevan borde blanco
   const alto = document.documentElement.dataset.contraste === 'alto';
@@ -41,6 +53,7 @@ function leerColores() {
 const estado = {
   anioDesde: ANIOS[ANIOS.length - 1],   // rango de años (ambos incluidos)
   anioHasta: ANIOS[ANIOS.length - 1],
+  zona: '',           // '' = todas; 'norte', 'centro' o 'sur'
   region: 0,          // 0 = todas
   servicio: -1,        // -1 = todos
   hospital: -1,        // -1 = todos; índice en DATOS.hospitales
@@ -50,6 +63,7 @@ const estado = {
   diagnostico: 'c800', // 'c800' o 'c809' (C80.0 + C80.9)
   ingreso: -1,
   vista: 'cup',        // 'cup' o 'comparar'
+  indicadorMapa: 'egresos',   // pestaña Territorio: 'egresos' o 'mortalidad'
 };
 
 const graficos = {};   // objetos de Chart.js ya creados
@@ -91,12 +105,14 @@ function esCUP(i) {
   return E.grupo[i] === G_CUP || (estado.diagnostico === 'c809' && E.grupo[i] === G_C809);
 }
 
-// Filtros que no son ni año ni grupo (región, servicio, sexo, edad, tipo de ingreso)
-// Con un hospital elegido se filtra solo por él: región y servicio ya quedan dados por el hospital
+// Filtros que no son ni año ni grupo (zona, región, servicio, sexo, edad, tipo de ingreso)
+// Con un hospital elegido se filtra solo por él: zona, región y servicio ya quedan dados por el hospital.
+// ignorarRegion (para el mapa y las zonas) deja fuera zona, región y servicio.
 function pasaFiltros(i, ignorarRegion = false) {
   if (estado.hospital >= 0) {
     if (E.hospital[i] !== estado.hospital) return false;
   } else {
+    if (!ignorarRegion && estado.zona && ZONA_DE_REGION[E.region[i]] !== estado.zona) return false;
     if (!ignorarRegion && estado.region && E.region[i] !== estado.region) return false;
     if (!ignorarRegion && estado.servicio >= 0 && E.servicio[i] !== estado.servicio) return false;
   }
@@ -155,8 +171,7 @@ function llenarFiltros() {
     sel.value = estado[campo];
   }
 
-  const selRegion = document.getElementById('f-region');
-  DATOS.ordenRegiones.forEach(c => selRegion.add(new Option(DATOS.regiones[c], c)));
+  llenarRegiones();
 
   const edadDesde = document.getElementById('f-edad-desde'), edadHasta = document.getElementById('f-edad-hasta');
   EDAD_DESDE.forEach((t, k) => edadDesde.add(new Option(t, k)));
@@ -167,11 +182,20 @@ function llenarFiltros() {
   llenarServicios();
 }
 
+// Regiones de la zona elegida (todas si no hay zona)
+function llenarRegiones() {
+  const sel = document.getElementById('f-region');
+  sel.length = 1;   // deja solo "Todas"
+  DATOS.ordenRegiones.filter(c => regionEnZona(c, estado.zona)).forEach(c => sel.add(new Option(DATOS.regiones[c], c)));
+  sel.value = estado.region;
+  document.getElementById('f-zona').value = estado.zona;
+}
+
 function llenarServicios() {
   const sel = document.getElementById('f-servicio');
   sel.length = 1;   // deja solo "Todos"
   DATOS.servicios.forEach((s, k) => {
-    if (!estado.region || s.region === estado.region) sel.add(new Option(s.nombre, k));
+    if (regionEnZona(s.region, estado.zona) && (!estado.region || s.region === estado.region)) sel.add(new Option(s.nombre, k));
   });
   sel.value = estado.servicio;
   llenarHospitales();
@@ -184,7 +208,7 @@ const NOMBRE_BUSCABLE = DATOS.hospitales.map(h => sinTildes(h.nombre));
 let resultadosHospital = [];   // índices que se muestran en la lista
 let activoHospital = -1;       // posición resaltada con el teclado
 
-const hospitalVisible = h => (!estado.region || h.region === estado.region) &&
+const hospitalVisible = h => regionEnZona(h.region, estado.zona) && (!estado.region || h.region === estado.region) &&
                              (estado.servicio < 0 || h.servicio === estado.servicio);
 
 // Si el hospital elegido ya no está en la región o servicio, vuelve a "Todos"
@@ -231,7 +255,7 @@ function buscarHospitales(texto) {
     return `<li role="option" data-k="${k}" id="op-hosp-${k}" class="${j === activoHospital ? 'activo' : ''} ${k === estado.hospital ? 'actual' : ''}">` +
            `<span class="codigo">${resaltar(h.codigo, palabras)}</span><span>${resaltar(h.nombre, palabras)}</span></li>`;
   }).join('');
-  if (!resultadosHospital.length) html += '<li class="vacio">Sin resultados en la región y servicio elegidos</li>';
+  if (!resultadosHospital.length) html += '<li class="vacio">Sin resultados en la zona, región y servicio elegidos</li>';
   lista.innerHTML = html;
   lista.hidden = false;
   document.getElementById('f-hospital').setAttribute('aria-expanded', 'true');
@@ -300,6 +324,7 @@ function conectarFiltros() {
       actualizarTodo();
     });
   }
+  document.getElementById('f-zona').addEventListener('change', ev => elegirZona(ev.target.value, false));
   document.getElementById('f-diagnostico').addEventListener('change', ev => {
     estado.diagnostico = ev.target.value;
     actualizarTodo();
@@ -307,7 +332,10 @@ function conectarFiltros() {
   for (const [id, vista] of [['vista-cup', 'cup'], ['vista-comparar', 'comparar']]) {
     document.getElementById(id).addEventListener('click', () => {
       estado.vista = vista;
-      document.querySelectorAll('.boton-vista').forEach(b => b.classList.toggle('activo', b.id === id));
+      document.querySelectorAll('#botones-vista-inicio .boton-vista').forEach(b => {
+        b.classList.toggle('activo', b.id === id);
+        b.setAttribute('aria-pressed', String(b.id === id));
+      });
       actualizarTodo();
     });
   }
@@ -348,10 +376,22 @@ function conectarRango(prefijo, campoDesde, campoHasta) {
   }
 }
 
+// Región desde el mapa o la tabla. Si queda fuera de la zona elegida, la zona pasa a ser la de la región.
 function elegirRegion(codigo) {
   estado.region = estado.region === codigo ? 0 : codigo;   // segundo clic = quitar el filtro
+  if (estado.region && !regionEnZona(estado.region, estado.zona)) estado.zona = ZONA_DE_REGION[estado.region];
   estado.servicio = -1;
-  document.getElementById('f-region').value = estado.region;
+  llenarRegiones();
+  llenarServicios();
+  actualizarTodo();
+}
+
+// Zona desde el selector o las tarjetas de zona (alternar = un segundo clic la quita). Quita la región si queda fuera.
+function elegirZona(zona, alternar = true) {
+  estado.zona = alternar && estado.zona === zona ? '' : zona;
+  if (estado.region && !regionEnZona(estado.region, estado.zona)) estado.region = 0;
+  estado.servicio = -1;
+  llenarRegiones();
   llenarServicios();
   actualizarTodo();
 }
@@ -395,10 +435,13 @@ function actualizarKPI() {
   poner('var-estada', textoVariacion(k.estada, ant('estada'), 'dias'));
   poner('var-peso', textoVariacion(k.peso, ant('peso'), '%'));
 
-  // vista comparativa: valor de los 5 metastásicos bajo cada KPI
+  document.getElementById('periodo-kpi').textContent = `· ${textoPeriodo()}`;
+
+  // vista comparativa: valor de los 5 metastásicos bajo cada KPI. Solo CUP: egresos por paciente bajo "Pacientes".
   const km = estado.vista === 'comparar' ? calcularKPI(filtrarEgresos({ grupo: 'met' })) : null;
+  const porPaciente = k.pacientes ? `${fmtDec(k.egresos / k.pacientes, 2)} egresos por paciente` : '';
   poner('ref-egresos', km ? `Metastásicos: ${fmtEntero(km.egresos)}` : '');
-  poner('ref-pacientes', km ? `Metastásicos: ${fmtEntero(km.pacientes)}` : '');
+  poner('ref-pacientes', km ? `Metastásicos: ${fmtEntero(km.pacientes)}` : porPaciente);
   poner('ref-mortalidad', km ? `Metastásicos: ${fmtDec(km.mortalidad)} %` : '');
   poner('ref-estada', km ? `Metastásicos: ${fmtDec(km.estada, 0)} días` : '');
   poner('ref-peso', km ? `Metastásicos: ${fmtDec(km.peso, 2)}` : '');
@@ -548,9 +591,10 @@ function graficoMortalidadComorb() {
   const etiquetas = orden.map(k => (k === n ? 'Sin ninguna de las 10' : DATOS.comorbilidades[k]));
   const serie = r => ({ data: orden.map(k => r.mortalidad[k]), n: orden.map(k => r.total[k]) });
   const comparar = estado.vista === 'comparar';
+  // Solo CUP: barras en el color de la muerte (naranjo) y la referencia en gris
   const datasets = comparar ? datasetsComparacion(indices => serie(mortalidadPorComorb(indices)))
     : [{ label: 'CUP', ...serie(cup), borderRadius: 4, barPercentage: 0.75,
-         backgroundColor: orden.map(k => (k === n ? COLOR.gris : COLOR.violeta)) }];
+         backgroundColor: orden.map(k => (k === n ? COLOR.gris : COLOR.muerte)) }];
   const referencia = cup.mortalidad[n];
   document.getElementById('nota-mortcomorb').textContent =
     `Muertes de cada 100 egresos ${comparar ? '' : 'CUP '}${textoPeriodo()} que tienen cada enfermedad · ` +
@@ -593,8 +637,10 @@ function porCharlson(indices) {
 function graficoCharlson() {
   const comparar = estado.vista === 'comparar';
   const serie = indices => { const r = porCharlson(indices); return { data: r.pct, mortalidad: r.mortalidad, n: r.n }; };
+  // Solo CUP: rampa del violeta, más intenso = más puntos (sobre negro también: más claro = más puntos)
+  const rampa = [0.3, 0.5, 0.75, 1].map(t => mezclar(COLOR.tarjeta, COLOR.violeta, t));
   const datasets = comparar ? datasetsComparacion(serie)
-    : [{ label: 'CUP', ...serie(filtrarEgresos()), backgroundColor: COLOR.violeta, borderRadius: 4, barPercentage: 0.6 }];
+    : [{ label: 'CUP', ...serie(filtrarEgresos()), backgroundColor: rampa, borderRadius: 4, barPercentage: 0.6 }];
   document.getElementById('nota-charlson').textContent = comparar
     ? `% de egresos ${textoPeriodo()} según el índice de Charlson · barra: CUP; punto: cada cáncer · mortalidad en el detalle`
     : `% de egresos CUP ${textoPeriodo()} según el índice de Charlson (puntos por enfermedad crónica, sin contar el cáncer)`;
@@ -751,67 +797,324 @@ function graficoEdad() {
 
 // ---------------------------------------------------------------- mapa (SVG hecho a mano)
 // Proyección simple: longitud corregida por el coseno de la latitud media de Chile continental.
-const LON_MIN = -76, LAT_MAX = -17.3, LAT_MIN = -56, COS = Math.cos(37 * Math.PI / 180);
-const proyectar = ([lon, lat]) => [((lon - LON_MIN) * COS * 10).toFixed(1), ((LAT_MAX - lat) * 10).toFixed(1)];
+// El mapa responde al filtro Zona: con una zona elegida solo se dibujan sus regiones y el encuadre se acerca a ellas.
+const LON_MIN = -76, LAT_MAX = -17.3, COS = Math.cos(37 * Math.PI / 180);
+const proyectar = ([lon, lat]) => [(lon - LON_MIN) * COS * 10, (LAT_MAX - lat) * 10];
 
-function dibujarMapa(porRegion) {
-  const ancho = (9.7 * COS * 10).toFixed(0), alto = ((LAT_MAX - LAT_MIN) * 10).toFixed(0);
-  let svg = `<svg viewBox="0 0 ${ancho} ${alto}" role="img" aria-label="Mapa de Chile por región">`;
-  for (const f of REGIONES_GEO.features) {
-    const cod = f.properties.codregion;
-    const n = porRegion[cod] ? porRegion[cod].egresos : 0;
-    const color = RAMPA_MAPA[CORTES_MAPA.filter(c => n >= c).length];
-    const d = f.geometry.coordinates.map(poly =>
-      poly.map(anillo => 'M' + anillo.map(p => proyectar(p).join(',')).join('L') + 'Z').join('')).join('');
-    svg += `<path d="${d}" fill="${color}" data-region="${cod}" class="${estado.region === cod ? 'elegida' : ''}"/>`;
+// Contorno proyectado de cada región (se calcula una vez): trazo SVG, caja y centro del polígono más grande
+const FORMAS = {};
+for (const f of REGIONES_GEO.features) {
+  const caja = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  let mayor = null, areaMayor = -1;
+  const d = f.geometry.coordinates.map(poly => poly.map(anillo => {
+    const pts = anillo.map(proyectar);
+    let a = 0;
+    pts.forEach(([x, y], k) => {
+      caja.x0 = Math.min(caja.x0, x); caja.x1 = Math.max(caja.x1, x);
+      caja.y0 = Math.min(caja.y0, y); caja.y1 = Math.max(caja.y1, y);
+      const [x2, y2] = pts[(k + 1) % pts.length];
+      a += x * y2 - x2 * y;
+    });
+    if (Math.abs(a) > areaMayor) { areaMayor = Math.abs(a); mayor = pts; }
+    return 'M' + pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L') + 'Z';
+  }).join('')).join('');
+  const ys = mayor.map(p => p[1]), xs = mayor.map(p => p[0]);
+  FORMAS[f.properties.codregion] = { d, caja, centroY: (Math.min(...ys) + Math.max(...ys)) / 2, bordeX: Math.max(...xs) };
+}
+
+// Indicador con que se colorea el mapa: egresos (verde azulado) o mortalidad (naranjo; gris si hay pocos egresos)
+const INDICADORES_MAPA = {
+  egresos: { cortes: [15, 30, 60], etiquetas: ['< 15', '15–29', '30–59', '≥ 60'], rampa: () => RAMPA_MAPA,
+             valor: r => r.egresos, texto: 'N° de egresos CUP' },
+  mortalidad: { cortes: [15, 20, 25], etiquetas: ['< 15 %', '15–19 %', '20–24 %', '≥ 25 %'], rampa: () => RAMPA_MUERTE,
+                valor: r => (r.egresos >= MIN_ESTABLE ? mortalidadDe(r) : null), texto: 'Mortalidad (de cada 100)' },
+};
+
+// Dibuja el mapa en el contenedor id. opciones: ancho (px), etiquetas (nombres de región a la derecha), indicador.
+function dibujarMapa(id, porRegion, { ancho = 150, etiquetas = false, indicador = 'egresos' } = {}) {
+  const ind = INDICADORES_MAPA[indicador];
+  const rampa = ind.rampa();
+  const visibles = REGIONES_GEO.features.map(f => f.properties.codregion).filter(c => regionEnZona(c, estado.zona));
+  const caja = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+  for (const c of visibles) {
+    const k = FORMAS[c].caja;
+    caja.x0 = Math.min(caja.x0, k.x0); caja.x1 = Math.max(caja.x1, k.x1);
+    caja.y0 = Math.min(caja.y0, k.y0); caja.y1 = Math.max(caja.y1, k.y1);
   }
-  document.getElementById('mapa').innerHTML = svg + '</svg>';
+  // u = unidades del mapa por píxel; con etiquetas se reservan 130 px a la derecha para los nombres
+  const espacio = etiquetas ? 130 : 0;
+  const u = (caja.x1 - caja.x0) / (ancho - espacio - 8);
+  const margen = 4 * u;
+  const vb = [caja.x0 - margen, caja.y0 - margen, caja.x1 - caja.x0 + espacio * u + 2 * margen, caja.y1 - caja.y0 + 2 * margen];
+  const zona = estado.zona ? ZONAS[estado.zona].nombre : 'Chile';
+  let svg = `<svg viewBox="${vb.map(v => v.toFixed(1)).join(' ')}" style="width:${ancho}px" role="img" ` +
+            `aria-label="Mapa de ${zona} por región: ${ind.texto.toLowerCase()}">`;
+  for (const c of visibles) {
+    const r = porRegion[c] || { egresos: 0, muertes: 0 };
+    const v = ind.valor(r);
+    const color = v === null ? COLOR.apagado : rampa[ind.cortes.filter(x => v >= x).length];
+    svg += `<path d="${FORMAS[c].d}" fill="${color}" data-region="${c}" class="${estado.region === c ? 'elegida' : ''}"/>`;
+  }
+  if (etiquetas) {
+    for (const c of visibles) {
+      svg += `<text class="nombre-region" x="${(FORMAS[c].bordeX + 6 * u).toFixed(1)}" y="${FORMAS[c].centroY.toFixed(1)}" ` +
+             `style="font-size:${(11.5 * u).toFixed(2)}px" dominant-baseline="middle">${DATOS.regiones[c]}</text>`;
+    }
+  }
+  if (!estado.zona) svg += lineasZona(vb, u);
+  const contenedor = document.getElementById(id);
+  contenedor.innerHTML = svg + '</svg>';
 
   const tip = document.getElementById('tooltip-mapa');
-  document.querySelectorAll('#mapa path').forEach(p => {
+  contenedor.querySelectorAll('path').forEach(p => {
     const cod = parseInt(p.dataset.region, 10);
     const r = porRegion[cod];
     p.addEventListener('mousemove', ev => {
       tip.style.display = 'block';
       tip.style.left = ev.clientX + 12 + 'px';
       tip.style.top = ev.clientY + 12 + 'px';
-      tip.innerHTML = `<b>${DATOS.regiones[cod]}</b><br>${r ? fmtEntero(r.egresos) : 0} egresos CUP` +
-        (r && r.egresos ? `<br>Mortalidad: ${fmtDec(r.mortalidad)} %` : '');
+      tip.innerHTML = `<b>${DATOS.regiones[cod]}</b> · zona ${ZONAS[ZONA_DE_REGION[cod]].nombre.toLowerCase()}` +
+        `<br>${r ? fmtEntero(r.egresos) : 0} egresos CUP` +
+        (r && r.egresos ? `<br>Mortalidad: ${fmtDec(mortalidadDe(r))} %${r.egresos < MIN_ESTABLE ? ' (pocos egresos)' : ''}` : '');
     });
     p.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
     p.addEventListener('click', () => { tip.style.display = 'none'; elegirRegion(cod); });
   });
-
-  const etiquetas = ['< 15', '15–29', '30–59', '≥ 60'];
-  document.getElementById('leyenda-mapa').innerHTML =
-    RAMPA_MAPA.map((c, k) => `<div><span style="background:${c}"></span>${etiquetas[k]}</div>`).join('');
 }
 
-function actualizarTerritorio() {
-  // El mapa muestra todas las regiones (no se filtra por región, solo se marca la elegida)
-  const porRegion = {};
-  for (const i of filtrarEgresos({ ignorarRegion: true })) {
+function leyendaMapa(id, indicador = 'egresos') {
+  const ind = INDICADORES_MAPA[indicador];
+  document.getElementById(id).innerHTML = ind.rampa().map((c, k) =>
+    `<div><span style="background:${c}"></span>${ind.etiquetas[k]}</div>`).join('') +
+    (indicador === 'mortalidad' ? `<div><span style="background:${COLOR.apagado}"></span>&lt; ${MIN_ESTABLE} egr.</div>` : '');
+}
+
+// Límites de las zonas cuando se ve el país completo (latitud aproximada entre Coquimbo y Valparaíso, y entre Maule y Ñuble)
+const LIMITES_ZONA = [{ lat: -32.2, abajo: 'Centro' }, { lat: -36.0, abajo: 'Sur' }];
+
+function lineasZona(vb, u) {
+  const y = lat => (LAT_MAX - lat) * 10;
+  const t = 10 * u;   // texto de 10 px
+  const x = vb[0] + 2 * u;
+  let svg = `<text class="zona-mapa" x="${x.toFixed(1)}" y="${(vb[1] + t * 1.2).toFixed(1)}" style="font-size:${t.toFixed(2)}px">Norte</text>`;
+  for (const l of LIMITES_ZONA) {
+    svg += `<line class="limite-zona" x1="${vb[0]}" x2="${vb[0] + vb[2]}" y1="${y(l.lat).toFixed(1)}" y2="${y(l.lat).toFixed(1)}"/>` +
+           `<text class="zona-mapa" x="${x.toFixed(1)}" y="${(y(l.lat) + t * 1.3).toFixed(1)}" style="font-size:${t.toFixed(2)}px">${l.abajo}</text>`;
+  }
+  return svg;
+}
+
+const mortalidadDe = r => (r.egresos ? r.muertes / r.egresos * 100 : NaN);
+const textoMort = r => (r.egresos ? fmtDec(mortalidadDe(r)) + ' %' : '–');
+
+// Resumen por región y por zona con los filtros de Inicio salvo zona, región y servicio. grupo: 'cup' o 'met'.
+function nuevoResumen() { return { egresos: 0, muertes: 0, estadas: [], peso: 0, sev3: 0, pacientes: new Set() }; }
+
+function resumenTerritorio({ grupo = 'cup', periodo = periodoActual() } = {}) {
+  const porRegion = {}, porZona = {};
+  for (const z of Object.keys(ZONAS)) porZona[z] = nuevoResumen();
+  const pais = nuevoResumen();
+  for (const i of filtrarEgresos({ ignorarRegion: true, grupo, periodo })) {
     const r = E.region[i];
     if (!r) continue;
-    porRegion[r] = porRegion[r] || { egresos: 0, muertes: 0 };
-    porRegion[r].egresos++;
-    porRegion[r].muertes += E.fallece[i];
+    for (const s of [porRegion[r] = porRegion[r] || nuevoResumen(), porZona[ZONA_DE_REGION[r]], pais]) {
+      s.egresos++;
+      s.muertes += E.fallece[i];
+      s.estadas.push(E.estada[i]);
+      s.peso += E.peso[i];
+      s.sev3 += E.sev3[i];
+      s.pacientes.add(E.paciente[i]);
+    }
   }
-  Object.values(porRegion).forEach(r => { r.mortalidad = r.muertes / r.egresos * 100; });
-  document.getElementById('nota-mapa').textContent = `Egresos CUP ${textoPeriodo()} por región del establecimiento`;
-  dibujarMapa(porRegion);
+  return { porRegion, porZona, pais };
+}
 
-  let html = '<tr><th>Región</th><th>Egresos</th><th>Mort.</th></tr>';
-  for (const cod of DATOS.ordenRegiones) {
-    const r = porRegion[cod] || { egresos: 0, mortalidad: NaN };
-    const mort = r.egresos ? fmtDec(r.mortalidad) + ' %' : '–';
-    html += `<tr data-region="${cod}" class="${estado.region === cod ? 'elegida' : ''}"><td>${DATOS.regiones[cod]}</td>` +
-            `<td>${fmtEntero(r.egresos)}</td><td class="${r.egresos < 30 ? 'poco' : ''}">${mort}</td></tr>`;
+// Regiones que se listan: las de la zona elegida o todas
+const regionesVisibles = () => DATOS.ordenRegiones.filter(c => regionEnZona(c, estado.zona));
+
+// Pestañas Territorio y Comparaciones (el mapa ya no está en Inicio: vive en la pestaña Territorio)
+function actualizarTerritorio() {
+  const { porRegion, porZona, pais } = resumenTerritorio();
+  actualizarPestanaTerritorio(porRegion, porZona, pais);
+  actualizarComparaciones();
+}
+
+// ---------------------------------------------------------------- pestaña Territorio
+// Mapa grande con nombres de región, indicador elegible y detalle por región.
+// Usa los mismos filtros de Inicio; el selector de zona de esta pestaña es el mismo filtro Zona.
+function kpiTerritorio(nombre, valor, detalle, tono) {
+  return `<div class="tarjeta kpi ${tono}"><div><span class="kpi-nombre">${nombre}</span>` +
+         `<div class="kpi-valor">${valor}</div><div class="kpi-ref">${detalle}</div></div></div>`;
+}
+
+function actualizarPestanaTerritorio(porRegion, porZona, pais) {
+  const zona = estado.zona ? ZONAS[estado.zona].nombre : null;
+  const ambito = zona ? porZona[estado.zona] : pais;
+  const lugar = zona ? `zona ${zona.toLowerCase()}` : 'Chile completo';
+  document.getElementById('t-titulo').innerHTML = `${zona ? 'Zona ' + zona : 'Chile completo'} <span>· ${textoPeriodo()}</span>`;
+  document.getElementById('t-bajada').textContent = zona
+    ? `Solo las ${ZONAS[estado.zona].regiones.length} regiones de la zona ${zona.toLowerCase()}. Usa los filtros de Inicio (años, sexo, edad, diagnóstico e ingreso).`
+    : 'Las 16 regiones, divididas en norte, centro y sur. Elige una zona para acercar el mapa a sus regiones.';
+  document.querySelectorAll('#t-zonas .boton-vista').forEach(b => {
+    b.classList.toggle('activo', b.dataset.zona === estado.zona);
+    b.setAttribute('aria-pressed', String(b.dataset.zona === estado.zona));
+  });
+  document.querySelectorAll('#t-indicador .boton-vista').forEach(b => {
+    b.classList.toggle('activo', b.dataset.indicador === estado.indicadorMapa);
+    b.setAttribute('aria-pressed', String(b.dataset.indicador === estado.indicadorMapa));
+  });
+
+  dibujarMapa('mapa-t', porRegion, { ancho: 340, etiquetas: true, indicador: estado.indicadorMapa });
+  leyendaMapa('leyenda-mapa-t', estado.indicadorMapa);
+  document.getElementById('t-nota-mapa').textContent =
+    `${INDICADORES_MAPA[estado.indicadorMapa].texto} por región del hospital · ${lugar}. Clic en una región para filtrar.`;
+
+  // Indicadores del ámbito (zona o país)
+  const est = mediana(ambito.estadas);
+  const deTotal = zona && pais.egresos ? `${fmtDec(ambito.egresos / pais.egresos * 100, 0)} % de los egresos CUP del país` : 'todas las regiones';
+  document.getElementById('t-kpi').innerHTML = [
+    kpiTerritorio('Egresos CUP', fmtEntero(ambito.egresos), deTotal, 'tono-volumen'),
+    kpiTerritorio('Pacientes únicos', fmtEntero(ambito.pacientes.size),
+      ambito.pacientes.size ? `${fmtDec(ambito.egresos / ambito.pacientes.size, 2)} egresos por paciente` : '', 'tono-volumen'),
+    kpiTerritorio('Mortalidad hospitalaria', textoMort(ambito),
+      zona ? `país: ${textoMort(pais)}` : 'de cada 100 egresos', 'tono-muerte'),
+    kpiTerritorio('Estancia mediana', isFinite(est) ? fmtDec(est, 0) + ' días' : '–',
+      zona ? `país: ${fmtDec(mediana(pais.estadas), 0)} días` : 'días entre ingreso y alta', 'tono-recursos'),
+    kpiTerritorio('Peso GRD medio', ambito.egresos ? fmtDec(ambito.peso / ambito.egresos / 100, 2) : '–',
+      zona && pais.egresos ? `país: ${fmtDec(pais.peso / pais.egresos / 100, 2)}` : '1 = hospitalización promedio', 'tono-recursos'),
+  ].join('');
+
+  // Mortalidad por región (barras naranjo; gris y sin cifra si hay menos de MIN_ESTABLE egresos)
+  const regiones = regionesVisibles();
+  const filas = regiones.map(c => ({ c, r: porRegion[c] || nuevoResumen() }));
+  const valor = f => (f.r.egresos >= MIN_ESTABLE ? mortalidadDe(f.r) : null);
+  document.getElementById('t-nota-mort').textContent =
+    `Muertes de cada 100 egresos CUP ${textoPeriodo()} · ${lugar}: ${textoMort(ambito)} · sin barra: menos de ${MIN_ESTABLE} egresos`;
+  dibujarGrafico('g-t-mort', {
+    type: 'bar',
+    data: { labels: filas.map(f => DATOS.regiones[f.c]),
+            datasets: [{ data: filas.map(valor), n: filas.map(f => f.r.egresos), borderRadius: 4, barPercentage: 0.75,
+                         backgroundColor: filas.map(f => (estado.region === f.c ? COLOR.naranjo : COLOR.muerte)) }] },
+    options: {
+      indexAxis: 'y', maintainAspectRatio: false,
+      layout: { padding: { right: 40 } },
+      scales: { x: { ...ejeLimpio(), beginAtZero: true, ticks: { callback: v => fmtEntero(v) + ' %' } },
+                y: { grid: { display: false }, border: { display: false }, ticks: { autoSkip: false } } },
+      plugins: { legend: { display: false },
+                 tooltip: { callbacks: { label: c => `${fmtDec(c.raw)} % mueren (${fmtEntero(c.dataset.n[c.dataIndex])} egresos)` } },
+                 etiquetasBarras: { mostrar: true, formato: v => fmtDec(v, 0) + ' %' } },
+      onClick: (ev, el) => { if (el.length) elegirRegion(filas[el[0].index].c); },
+    },
+  });
+  document.querySelector('#territorio .alto-t-mort').style.height = (60 + regiones.length * 30) + 'px';
+
+  // Detalle por región
+  const total = pais.egresos;
+  let html = '<tr><th>Región</th><th>Egresos</th><th>% del país</th><th>Pacientes</th><th>Mortalidad</th>' +
+             '<th>Estancia</th><th>Sev. 3</th><th>Peso</th></tr>';
+  const fila = (nombre, r, clase, atributos) => {
+    const e = mediana(r.estadas);
+    return `<tr class="${clase}" ${atributos}><td>${nombre}</td><td>${fmtEntero(r.egresos)}</td>` +
+      `<td>${total ? fmtDec(r.egresos / total * 100, 1) + ' %' : '–'}</td><td>${fmtEntero(r.pacientes.size)}</td>` +
+      `<td class="${r.egresos < MIN_ESTABLE ? 'poco' : ''}">${textoMort(r)}</td>` +
+      `<td>${isFinite(e) ? fmtDec(e, 0) + ' d' : '–'}</td>` +
+      `<td>${r.egresos ? fmtDec(r.sev3 / r.egresos * 100) + ' %' : '–'}</td>` +
+      `<td>${r.egresos ? fmtDec(r.peso / r.egresos / 100, 2) : '–'}</td></tr>`;
+  };
+  for (const [z, d] of Object.entries(ZONAS)) {
+    if (estado.zona && estado.zona !== z) continue;
+    html += fila(d.nombre, porZona[z], `fila-zona ${estado.zona === z ? 'elegida' : ''}`, `data-zona="${z}"`);
+    for (const c of d.regiones) {
+      html += fila(DATOS.regiones[c], porRegion[c] || nuevoResumen(), estado.region === c ? 'elegida' : '', `data-region="${c}"`);
+    }
   }
-  const tabla = document.getElementById('tabla-regiones');
+  if (!estado.zona) html += fila('Chile', pais, 'fila-total', '');
+  const tabla = document.getElementById('t-tabla');
   tabla.innerHTML = html;
   tabla.querySelectorAll('tr[data-region]').forEach(tr =>
     tr.addEventListener('click', () => elegirRegion(parseInt(tr.dataset.region, 10))));
+  tabla.querySelectorAll('tr[data-zona]').forEach(tr => tr.addEventListener('click', () => elegirZona(tr.dataset.zona)));
+}
+
+// ---------------------------------------------------------------- pestaña Comparaciones
+// Las tres zonas lado a lado, con los filtros de Inicio salvo zona y región (se comparan todas).
+// Barra violeta: CUP; barra gris: los 5 metastásicos juntos.
+function graficoZonas(id, cup, met, valor, formato, eje) {
+  const nombres = Object.values(ZONAS).map(d => d.nombre);
+  const claves = Object.keys(ZONAS);
+  dibujarGrafico(id, {
+    type: 'bar',
+    data: { labels: nombres, datasets: [
+      { label: 'CUP', data: claves.map(z => valor(cup.porZona[z])), n: claves.map(z => cup.porZona[z].egresos),
+        backgroundColor: COLOR.violeta, borderRadius: 4, barPercentage: 0.8, categoryPercentage: 0.7 },
+      { label: 'Metastásicos (5)', data: claves.map(z => valor(met.porZona[z])), n: claves.map(z => met.porZona[z].egresos),
+        backgroundColor: COLOR.gris, borderRadius: 4, barPercentage: 0.8, categoryPercentage: 0.7 },
+    ] },
+    options: {
+      maintainAspectRatio: false,
+      layout: { padding: { top: 18 } },
+      scales: { y: { ...ejeLimpio(), beginAtZero: true, grace: '18%', ticks: { callback: eje } }, x: { grid: { display: false } } },
+      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10 } },
+                 tooltip: { callbacks: { label: c => `${c.dataset.label}: ${formato(c.raw)} (${fmtEntero(c.dataset.n[c.dataIndex])} egresos)` } },
+                 etiquetasBarras: { mostrar: true, formato } },
+    },
+  });
+}
+
+function actualizarComparaciones() {
+  const cup = resumenTerritorio(), met = resumenTerritorio({ grupo: 'met' });
+  const mort = r => (r.egresos >= MIN_ESTABLE ? mortalidadDe(r) : null);
+  const est = r => (r.egresos ? mediana(r.estadas) : null);
+  const peso = r => (r.egresos ? r.peso / r.egresos / 100 : null);
+  document.getElementById('c-titulo').innerHTML = `Norte, centro y sur lado a lado <span>· ${textoPeriodo()}</span>`;
+  graficoZonas('g-c-mort', cup, met, mort, v => fmtDec(v) + ' %', v => fmtEntero(v) + ' %');
+  graficoZonas('g-c-estancia', cup, met, est, v => fmtDec(v, 0) + ' d', v => fmtEntero(v) + ' d');
+  graficoZonas('g-c-peso', cup, met, peso, v => fmtDec(v, 2), v => fmtDec(v, 1));
+
+  // Egresos CUP por año en cada zona (todos los años, para ver la tendencia)
+  const todos = { desde: ANIOS[0], hasta: ANIOS[ANIOS.length - 1] };
+  const porAnio = {};
+  for (const z of Object.keys(ZONAS)) porAnio[z] = ANIOS.map(() => 0);
+  for (const i of filtrarEgresos({ ignorarRegion: true, periodo: todos })) {
+    const z = ZONA_DE_REGION[E.region[i]];
+    if (z) porAnio[z][ANIOS.indexOf(E.anio[i])]++;
+  }
+  const trazos = [[], [6, 4], [2, 3]];   // la línea también se distingue sin color
+  dibujarGrafico('g-c-anios', {
+    type: 'line',
+    data: { labels: ANIOS, datasets: Object.entries(ZONAS).map(([z, d], k) => ({
+      label: d.nombre, data: porAnio[z], borderColor: COLOR.zonas[k], backgroundColor: COLOR.zonas[k],
+      borderWidth: 2.5, borderDash: trazos[k], pointRadius: 3.5, pointStyle: ['circle', 'rect', 'triangle'][k], tension: 0 })) },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: { y: { ...ejeLimpio(), beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
+      plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, pointStyleWidth: 10, boxHeight: 7 } } },
+    },
+  });
+
+  // Tabla: CUP frente a metastásicos en cada zona
+  let html = '<tr><th>Zona</th><th>Egresos CUP</th><th>Pacientes CUP</th><th>Mortalidad CUP</th><th>Mortalidad metastásicos</th>' +
+             '<th>Diferencia</th><th>Estancia CUP</th><th>Sev. 3 CUP</th></tr>';
+  for (const [z, d] of Object.entries(ZONAS)) {
+    const c = cup.porZona[z], m = met.porZona[z];
+    const dif = c.egresos && m.egresos ? mortalidadDe(c) - mortalidadDe(m) : NaN;
+    const e = mediana(c.estadas);
+    html += `<tr class="${estado.zona === z ? 'elegida' : ''}"><td><span class="punto-grupo" style="background:${COLOR.zonas[Object.keys(ZONAS).indexOf(z)]}"></span>${d.nombre}</td>` +
+      `<td>${fmtEntero(c.egresos)}</td><td>${fmtEntero(c.pacientes.size)}</td>` +
+      `<td class="${c.egresos < MIN_ESTABLE ? 'poco' : ''}">${textoMort(c)}</td><td>${textoMort(m)}</td>` +
+      `<td>${isFinite(dif) ? (dif >= 0 ? '+' : '−') + fmtDec(Math.abs(dif)) + ' pts' : '–'}</td>` +
+      `<td>${isFinite(e) ? fmtDec(e, 0) + ' d' : '–'}</td><td>${c.egresos ? fmtDec(c.sev3 / c.egresos * 100) + ' %' : '–'}</td></tr>`;
+  }
+  document.getElementById('c-tabla').innerHTML = html;
+}
+
+function conectarPestanasZona() {
+  document.querySelectorAll('#t-zonas .boton-vista').forEach(b => b.addEventListener('click', () => elegirZona(b.dataset.zona, false)));
+  document.querySelectorAll('#t-indicador .boton-vista').forEach(b => b.addEventListener('click', () => {
+    estado.indicadorMapa = b.dataset.indicador;
+    actualizarTerritorio();
+  }));
 }
 
 // ---------------------------------------------------------------- tabla comparativa
@@ -826,20 +1129,21 @@ function actualizarTabla() {
   filasTabla = grupos.map(g => {
     const k = calcularKPI(filtrarEgresos({ grupo: g.grupo }));
     const kAnt = anterior ? calcularKPI(filtrarEgresos({ grupo: g.grupo, periodo: anterior })) : null;
-    return { ...g, ...k, variacion: kAnt && kAnt.egresos ? (k.egresos / kAnt.egresos - 1) * 100 : NaN };
+    // diferencia porcentual de egresos frente al período anterior del mismo largo
+    return { ...g, ...k, difPct: kAnt && kAnt.egresos ? (k.egresos / kAnt.egresos - 1) * 100 : NaN };
   });
   // CUP primero y los demás ordenados por mortalidad (como en el boceto)
   const resto = filasTabla.slice(1).sort((a, b) => (b.mortalidad || 0) - (a.mortalidad || 0));
   filasTabla = [filasTabla[0]].concat(resto);
 
-  let html = '<tr><th>Grupo</th><th>Egresos</th><th>Var.</th><th>Mortalidad</th><th>Estancia</th><th>Sev. 3</th>' +
-             '<th>Ch. ≥ 2</th><th>Peso</th></tr>';
+  let html = '<tr><th>Grupo</th><th>Egresos</th><th title="Diferencia porcentual de egresos frente al período anterior">Dif. %</th>' +
+             '<th>Mortalidad</th><th>Estancia</th><th>Sev. 3</th><th>Ch. ≥ 2</th><th>Peso</th></tr>';
   for (const f of filasTabla) {
     const vacio = f.egresos === 0;
     const color = COLOR.grupos[f.grupo === 'cup' ? 0 : f.grupo];
     html += `<tr class="${f.grupo === 'cup' ? 'fila-cup' : ''}"><td><span class="punto-grupo" style="background:${color}"></span>` +
       `${f.nombre}</td><td>${fmtEntero(f.egresos)}</td>` +
-      `<td>${isFinite(f.variacion) ? (f.variacion >= 0 ? '+' : '−') + fmtDec(Math.abs(f.variacion)) + ' %' : '–'}</td>` +
+      `<td>${isFinite(f.difPct) ? (f.difPct >= 0 ? '+' : '−') + fmtDec(Math.abs(f.difPct)) + ' %' : '–'}</td>` +
       `<td>${vacio ? '–' : fmtDec(f.mortalidad) + ' %'}</td><td>${vacio ? '–' : fmtDec(f.estada, 0) + ' d'}</td>` +
       `<td>${vacio ? '–' : fmtDec(f.sev3) + ' %'}</td><td>${vacio ? '–' : fmtDec(f.charlson2) + ' %'}</td>` +
       `<td>${vacio ? '–' : fmtDec(f.peso, 2)}</td></tr>`;
@@ -861,10 +1165,10 @@ function bajarCSV(nombre, filas) {
 const periodoArchivo = () => textoPeriodo().replace('–', '-');
 
 function descargarCSV() {
-  const enc = ['Grupo', 'Egresos', 'Variacion_%', 'Mortalidad_%', 'Estancia_mediana_dias', 'Severidad3_%',
+  const enc = ['Grupo', 'Egresos', 'Diferencia_porcentual_egresos_%', 'Mortalidad_%', 'Estancia_mediana_dias', 'Severidad3_%',
                'Charlson_2_o_mas_%', 'Peso_GRD'];
   bajarCSV(`comparacion_cup_${periodoArchivo()}.csv`, [enc].concat(filasTabla.map(f => [
-    f.nombre, f.egresos, isFinite(f.variacion) ? fmtDec(f.variacion) : '', isFinite(f.mortalidad) ? fmtDec(f.mortalidad) : '',
+    f.nombre, f.egresos, isFinite(f.difPct) ? fmtDec(f.difPct) : '', isFinite(f.mortalidad) ? fmtDec(f.mortalidad) : '',
     isFinite(f.estada) ? f.estada : '', isFinite(f.sev3) ? fmtDec(f.sev3) : '',
     isFinite(f.charlson2) ? fmtDec(f.charlson2) : '', isFinite(f.peso) ? fmtDec(f.peso, 2) : '',
   ])));
@@ -900,6 +1204,7 @@ function egresosDescarga() {
 function filtrosActivos() {
   return [
     ['Años', textoPeriodo(), estado.anioDesde !== ANIOS[0] || estado.anioHasta !== ANIOS[ANIOS.length - 1]],
+    ['Zona', estado.zona ? ZONAS[estado.zona].nombre : 'Todas', !!estado.zona],
     ['Región', estado.region ? DATOS.regiones[estado.region] : 'Todas', !!estado.region],
     ['Servicio de Salud', estado.servicio >= 0 ? DATOS.servicios[estado.servicio].nombre : 'Todos', estado.servicio >= 0],
     ['Hospital', estado.hospital >= 0 ? DATOS.hospitales[estado.hospital].nombre : 'Todos', estado.hospital >= 0],
@@ -942,8 +1247,8 @@ async function guardarPDF() {
     const lienzo = await html2canvas(document.body, {
       scale: 2, backgroundColor: getComputedStyle(document.body).backgroundColor,
       windowWidth: document.documentElement.scrollWidth,
-      ignoreElements: el => el.id === 'tooltip-mapa' || el.classList.contains('creditos') || el.id === 'descargar' ||
-                            el.id === 'alto-contraste',
+      ignoreElements: el => el.id === 'tooltip-mapa' || el.id === 'tooltip-ayuda' || el.classList.contains('creditos') ||
+                            el.id === 'descargar' || el.id === 'alto-contraste' || el.classList.contains('ayuda'),
       onclone: doc => {
         // html2canvas no aplica el CSS a los SVG: se copia el estilo de los íconos como atributos
         doc.querySelectorAll('svg').forEach(svg => {
@@ -1157,6 +1462,141 @@ function conectarContraste() {
   });
 }
 
+// ---------------------------------------------------------------- pacientes únicos frente a egresos
+// Total del CUP (C80.0) 2019–2025: pacientes contados una vez en todo el período y la suma de los conteos de cada año.
+const RESUMEN_PACIENTES = (() => {
+  const total = new Set(), porAnio = {};
+  let egresos = 0;
+  for (let i = 0; i < N; i++) {
+    if (E.grupo[i] !== G_CUP) continue;
+    egresos++;
+    total.add(E.paciente[i]);
+    (porAnio[E.anio[i]] = porAnio[E.anio[i]] || new Set()).add(E.paciente[i]);
+  }
+  const suma = Object.values(porAnio).reduce((s, c) => s + c.size, 0);
+  return { egresos, pacientes: total.size, sumaAnios: suma, desde: ANIOS[0], hasta: ANIOS[ANIOS.length - 1] };
+})();
+
+function textoPacientesTotal() {
+  const r = RESUMEN_PACIENTES;
+  return `en ${r.desde}–${r.hasta} hay ${fmtEntero(r.egresos)} egresos CUP de ${fmtEntero(r.pacientes)} pacientes ` +
+    `(${fmtDec(r.egresos / r.pacientes, 2)} egresos por paciente); sumando los pacientes de cada año serían ` +
+    `${fmtEntero(r.sumaAnios)}, porque quien se hospitaliza en dos años distintos se contaría dos veces.`;
+}
+
+// ---------------------------------------------------------------- ayudas (hover)
+// Cada elemento con data-ayuda recibe un botón (i). Al pasar el mouse o enfocarlo con el teclado se muestra qué mide
+// la variable y cómo se calcula. Los textos van aquí para mantenerlos juntos y revisarlos de una vez.
+const AYUDA = {
+  zona: ['Zona', 'Agrupa las 16 regiones en tres zonas, según la región del hospital. <b>Norte:</b> Arica y Parinacota, ' +
+    'Tarapacá, Antofagasta, Atacama y Coquimbo. <b>Centro:</b> Valparaíso, Metropolitana, O\'Higgins y Maule. ' +
+    '<b>Sur:</b> Ñuble, Biobío, La Araucanía, Los Ríos, Los Lagos, Aysén y Magallanes.'],
+  edadFiltro: ['Edad', 'Edad al ingreso, en tramos de 10 años. Restricción de datos (0–18 años): el estudio incluye solo ' +
+    'a pacientes de 18 años o más.'],
+  diagnostico: ['Diagnóstico CIE-10', '<b>C80.0:</b> tumor maligno de sitio primario desconocido, el CUP del estudio. ' +
+    '<b>C80.0 + C80.9:</b> suma el tumor maligno sin especificar (C80.9), solo como análisis de sensibilidad.'],
+  ingreso: ['Tipo de ingreso', '<b>Urgencia:</b> la hospitalización empieza en la urgencia. <b>Programada:</b> fue agendada ' +
+    '(por ejemplo, para un tratamiento o un estudio).'],
+  egresos: ['Egresos CUP', 'Hospitalizaciones que terminaron en el período (alta o muerte) con el código C80.0 en ' +
+    'cualquiera de los 35 diagnósticos. Un paciente que se hospitaliza dos veces suma dos egresos. Debajo, la diferencia ' +
+    'porcentual frente al período anterior del mismo largo.'],
+  pacientes: ['Pacientes únicos', () => 'Personas distintas detrás de los egresos, contadas una sola vez por su ID cifrado ' +
+    'en todo el período elegido. Por eso es menor que los egresos: ' + textoPacientesTotal() +
+    ' <b>Límite:</b> el ID cambia entre 2020 y 2021; en un rango que cruce ese corte, un paciente puede contarse dos veces.'],
+  mortalidad: ['Mortalidad hospitalaria', 'Egresos que terminan con el paciente fallecido, de cada 100. Solo cuenta las ' +
+    'muertes dentro del hospital. La diferencia con el período anterior va en puntos porcentuales: en naranjo si sube.'],
+  estancia: ['Estancia mediana', 'Días entre el ingreso y el alta. Se usa la mediana (la mitad de los pacientes estuvo ' +
+    'menos días) porque unas pocas estadías muy largas inflarían el promedio.'],
+  peso: ['Peso GRD medio', 'Recursos que consume la hospitalización según la clasificación GRD, comparada con una ' +
+    'hospitalización promedio (peso 1). Un peso de 1,5 consume 50 % más que el promedio.'],
+  sitios: ['Sitios de metástasis', 'Lugar del cuerpo donde está la metástasis, según los códigos C77 a C79 de cualquier ' +
+    'diagnóstico. Un egreso puede tener varios sitios, así que las barras suman más que el total. Solo CUP: N° de ' +
+    'egresos. CUP vs. metastásicos: % de los egresos de cada grupo.'],
+  mensual: ['Evolución mensual', 'N° de egresos según el mes del alta. Con un solo año, la línea gris punteada es el año ' +
+    'anterior. Con varios años, la serie sigue mes a mes.'],
+  sexo: ['Distribución por sexo', 'Sexo registrado en el egreso. El porcentaje se calcula sobre los egresos con sexo ' +
+    'informado.'],
+  edad: ['Distribución por edad', 'Edad al ingreso en tramos de 10 años. En 2025 la base solo trae tramos de 5 años: se ' +
+    'usa el punto medio del tramo. Solo adultos (restricción de datos de 0 a 18 años).'],
+  tabla: ['Comparación con metastásicos', '<b>Metastásico:</b> cáncer de pulmón, colorrectal, mama, próstata o gástrico ' +
+    'con un código de metástasis (C77–C79). <b>Dif. %:</b> (egresos del período − egresos del período anterior) ÷ ' +
+    'egresos del período anterior × 100. <b>Sev. 3:</b> % con la severidad GRD máxima. <b>Ch. ≥ 2:</b> % con índice ' +
+    'de Charlson de 2 o más. <b>Peso:</b> peso GRD medio.'],
+  comorb: ['Comorbilidades', '<b>Comorbilidad:</b> enfermedad crónica que el paciente tiene además del cáncer y que no ' +
+    'es el motivo de la hospitalización. Se cuenta si su código CIE-10 aparece en los diagnósticos 2 a 35 (el 1 es el ' +
+    'motivo). El cáncer y sus metástasis no se cuentan. Se miden 10 enfermedades; un egreso puede tener varias.'],
+  mortcomorb: ['Mortalidad según comorbilidad', 'De cada 100 egresos que tienen esa enfermedad, cuántos mueren en el ' +
+    'hospital. "Sin ninguna de las 10" es la referencia para comparar. No está ajustada por edad ni gravedad. Con menos ' +
+    'de 30 egresos no se dibuja la barra.'],
+  charlson: ['Índice de Charlson', 'Resume en un número la carga de enfermedades crónicas: suma 1, 2, 3 o 6 puntos por ' +
+    'cada una según su gravedad (códigos de Quan, 2005). No cuenta el cáncer ni la metástasis, porque todos los ' +
+    'pacientes los tienen. 0 puntos = ninguna enfermedad del índice.'],
+  territorio: ['Mapa por región', 'Color según el N° de egresos CUP de cada región en el período (en la pestaña Territorio ' +
+    'también según la mortalidad). Con el filtro Zona, el mapa muestra y acerca solo las regiones de esa zona; sin zona, ' +
+    'las líneas punteadas separan el norte, el centro y el sur. La región es la del hospital (según el DEIS), no la del domicilio del paciente.'],
+  regiones: ['Regiones por zona', 'Cada zona muestra su subtotal y debajo sus regiones. <b>% del país:</b> parte de los ' +
+    'egresos CUP del período que ocurrió ahí. <b>Mortalidad:</b> muertes de cada 100 egresos, sin ajustar por edad ni ' +
+    'gravedad; en gris si hay menos de 30 egresos.'],
+  cMort: ['Mortalidad por zona', 'Muertes en el hospital de cada 100 egresos de cada zona, para el CUP y para los cinco ' +
+    'metastásicos juntos. Sin ajustar por edad ni gravedad. Con menos de 30 egresos no se dibuja la barra.'],
+  cAnios: ['Egresos CUP por año', 'N° de hospitalizaciones por CUP en cada zona y año, de 2019 a 2025. No usa el filtro ' +
+    'de años, para mostrar la tendencia completa; sí usa sexo, edad, diagnóstico e ingreso.'],
+  cTabla: ['CUP frente a metastásicos', 'Para cada zona: egresos y pacientes CUP, mortalidad del CUP y de los cinco ' +
+    'metastásicos, y su diferencia en puntos porcentuales (+ = el CUP muere más). Sev. 3: % con severidad GRD máxima.'],
+  tDetalle: ['Detalle por región', 'Indicadores de cada región según el hospital donde ocurrió el egreso. <b>% del país:</b> ' +
+    'parte de los egresos CUP de Chile. <b>Pacientes:</b> personas distintas. <b>Estancia:</b> mediana en días. ' +
+    '<b>Sev. 3:</b> % con severidad GRD máxima. <b>Peso:</b> peso GRD medio.'],
+  calculadora: ['Calculadora de estadía', 'Usa la regresión lineal de la pregunta P13 del notebook: suma el efecto de ' +
+    'cada característica elegida y devuelve los días promedio de un paciente con ese perfil. No es un pronóstico ' +
+    'individual.'],
+  coeficientes: ['Qué alarga la estadía', 'Cada barra es el % de cambio en los días de estadía al tener esa ' +
+    'característica, con todo lo demás igual, frente a la categoría de referencia. Gris: la diferencia no es ' +
+    'significativa (p ≥ 0,05).'],
+  calidad: ['Calidad del modelo', '<b>R²:</b> parte de la variación de la estadía que el modelo explica (de 0 a 1). ' +
+    '<b>Error absoluto medio:</b> cuántos días se equivoca en promedio con un paciente. Se mide en el 20 % de los ' +
+    'egresos que el modelo no usó para ajustarse.'],
+  correlaciones: ['Correlaciones', 'Correlación de Pearson entre cada par de variables del ingreso, de −1 a 1. Cerca de ' +
+    '0: no se relacionan. Sirvió para elegir las variables del modelo y descartar las que repiten información.'],
+};
+
+function conectarAyudas() {
+  const tip = document.getElementById('tooltip-ayuda');
+  const mostrar = boton => {
+    const [titulo, texto] = AYUDA[boton.dataset.clave];
+    tip.innerHTML = `<b class="tip-titulo">${titulo}</b>${typeof texto === 'function' ? texto() : texto}`;
+    tip.style.display = 'block';
+    const caja = boton.getBoundingClientRect();
+    const ancho = tip.offsetWidth, alto = tip.offsetHeight;
+    let x = Math.min(Math.max(8, caja.left + caja.width / 2 - ancho / 2), window.innerWidth - ancho - 8);
+    let y = caja.bottom + 8;
+    if (y + alto > window.innerHeight - 8) y = Math.max(8, caja.top - alto - 8);   // sin espacio abajo: arriba
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+    boton.setAttribute('aria-describedby', 'tooltip-ayuda');
+  };
+  const ocultar = boton => { tip.style.display = 'none'; if (boton) boton.removeAttribute('aria-describedby'); };
+
+  document.querySelectorAll('[data-ayuda]').forEach(el => {
+    const clave = el.dataset.ayuda;
+    if (!AYUDA[clave]) return;
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'ayuda';
+    boton.dataset.clave = clave;
+    boton.setAttribute('aria-label', `Qué es: ${AYUDA[clave][0]}`);
+    boton.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5h.01"/></svg>';
+    el.append(boton);
+    boton.addEventListener('mouseenter', () => mostrar(boton));
+    boton.addEventListener('focus', () => mostrar(boton));
+    boton.addEventListener('mouseleave', () => { if (document.activeElement !== boton) ocultar(boton); });
+    boton.addEventListener('blur', () => ocultar(boton));
+    // dentro de un <label>, el clic no debe abrir el selector; en pantallas táctiles el clic muestra la ayuda
+    boton.addEventListener('click', ev => { ev.preventDefault(); mostrar(boton); });
+    boton.addEventListener('keydown', ev => { if (ev.key === 'Escape') ocultar(boton); });
+  });
+  window.addEventListener('scroll', () => ocultar(document.activeElement), { passive: true });
+}
+
 // ---------------------------------------------------------------- inicio
 function actualizarTodo() {
   actualizarKPI();
@@ -1176,6 +1616,9 @@ leerColores();
 llenarFiltros();
 conectarFiltros();
 conectarContraste();
+conectarAyudas();
+conectarPestanasZona();
+document.getElementById('met-pacientes').textContent = textoPacientesTotal();
 actualizarTodo();
 if (llenarCalculadora()) {
   mostrarCalidadModelo();
