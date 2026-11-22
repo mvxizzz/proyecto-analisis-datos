@@ -327,13 +327,20 @@
           </div>
         </div>
         <div class="vista" role="group" aria-label="Colorear el mapa por">
-          <span class="etiqueta">Colorear por</span>
+          <span class="etiqueta">Indicador</span>
           <div class="botones-vista" id="t-indicador">
-            <button class="boton-vista" data-indicador="egresos">Egresos</button>
             <button class="boton-vista" data-indicador="mortalidad">Mortalidad</button>
+            <button class="boton-vista" data-indicador="oncologia">Oncología</button>
+            <button class="boton-vista" data-indicador="estancia">Estancia</button>
+            <button class="boton-vista" data-indicador="egresos">Egresos</button>
           </div>
         </div>
       </div>
+    </div>
+    <div class="aviso-periodo" id="t-aviso" hidden>
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16.5h.01"/></svg>
+      <span></span>
+      <button type="button" class="boton-vista" id="t-ver-todo">Ver 2019–2025</button>
     </div>
     <div class="fila-territorio-t">
       <div class="tarjeta panel panel-mapa">
@@ -344,9 +351,16 @@
       </div>
       <div class="columna-territorio">
         <div class="fila-kpi" id="t-kpi"></div>
-        <div class="tarjeta panel tono-muerte">
-          <h2><svg viewBox="0 0 24 24"><polyline points="2 12 6 12 9 4 15 20 18 12 22 12"/></svg><span class="con-ayuda" data-ayuda="regiones">Mortalidad por región</span></h2>
+        <div class="tarjeta panel tono-territorio">
+          <div class="cabeza-panel">
+            <h2><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16h4"/><path d="M7 12h9"/><path d="M7 8h6"/></svg><span class="con-ayuda" data-ayuda="regiones"><span id="t-graf-titulo">Mortalidad por región</span></span></h2>
+            <div class="botones-vista" id="t-orden" role="group" aria-label="Orden de las regiones">
+              <button class="boton-vista" data-orden="geo">Norte a sur</button>
+              <button class="boton-vista" data-orden="valor">Mayor a menor</button>
+            </div>
+          </div>
           <p class="nota" id="t-nota-mort"></p>
+          <p class="hallazgo" id="t-hallazgo"></p>
           <div class="caja-grafico alto-t-mort"><canvas id="g-t-mort"></canvas></div>
         </div>
         <div class="tarjeta panel">

@@ -32,7 +32,7 @@ function leerColores() {
   COLOR = {
     violeta: v('--violeta'), violetaClaro: v('--violeta-claro'), gris: v('--gris'), grilla: v('--grilla'),
     texto: v('--texto-2'), tinta: v('--tinta'), tarjeta: v('--tarjeta'), naranjo: v('--naranjo'), azul: v('--azul'),
-    apagado: v('--apagado'), muerte: v('--s-muerte'),
+    apagado: v('--apagado'), muerte: v('--s-muerte'), territorio: v('--s-territorio'), recursos: v('--s-recursos'),
     // CUP, CUP potencial (C80.9, mismo color que el CUP), Pulmón, Colorrectal, Mama, Próstata, Gástrico
     grupos: ['cup', 'cup', 'pulmon', 'colorrectal', 'mama', 'prostata', 'gastrico'].map(g => v(`--g-${g}`)),
     diverge: ['neg', 'medio', 'pos'].map(p => v(`--diverge-${p}`)),
@@ -63,7 +63,8 @@ const estado = {
   diagnostico: 'c800', // 'c800' o 'c809' (C80.0 + C80.9)
   ingreso: -1,
   vista: 'cup',        // 'cup' o 'comparar'
-  indicadorMapa: 'egresos',   // pestaña Territorio: 'egresos' o 'mortalidad'
+  indicadorMapa: 'mortalidad', // pestaña Territorio: 'egresos', 'mortalidad', 'oncologia' o 'estancia'
+  ordenTerritorio: 'geo',      // pestaña Territorio: 'geo' (de norte a sur) o 'valor' (de mayor a menor)
 };
 
 const graficos = {};   // objetos de Chart.js ya creados
@@ -822,13 +823,35 @@ for (const f of REGIONES_GEO.features) {
   FORMAS[f.properties.codregion] = { d, caja, centroY: (Math.min(...ys) + Math.max(...ys)) / 2, bordeX: Math.max(...xs) };
 }
 
-// Indicador con que se colorea el mapa: egresos (verde azulado) o mortalidad (naranjo; gris si hay pocos egresos)
+// Indicadores del mapa y del gráfico por región (pestaña Territorio). Las proporciones llevan su IC 95 % (Wilson):
+// con pocos egresos el intervalo es ancho, y eso se muestra en vez de esconder la región.
+// rampa: más intenso = valor más alto (sobre negro, más claro). Las de proporción se pintan en gris bajo MIN_ESTABLE.
+const rampaDe = color => [0.22, 0.45, 0.72, 1].map(t => mezclar(COLOR.tarjeta, color, t));
 const INDICADORES_MAPA = {
-  egresos: { cortes: [15, 30, 60], etiquetas: ['< 15', '15–29', '30–59', '≥ 60'], rampa: () => RAMPA_MAPA,
-             valor: r => r.egresos, texto: 'N° de egresos CUP' },
-  mortalidad: { cortes: [15, 20, 25], etiquetas: ['< 15 %', '15–19 %', '20–24 %', '≥ 25 %'], rampa: () => RAMPA_MUERTE,
-                valor: r => (r.egresos >= MIN_ESTABLE ? mortalidadDe(r) : null), texto: 'Mortalidad (de cada 100)' },
+  egresos: { nombre: 'Egresos CUP', corto: 'Egresos', cortes: [15, 30, 60], etiquetas: ['< 15', '15–29', '30–59', '≥ 60'],
+             rampa: () => RAMPA_MAPA, color: () => COLOR.territorio, valor: r => r.egresos, formato: v => fmtEntero(v),
+             texto: 'N° de egresos CUP', proporcion: false },
+  mortalidad: { nombre: 'Mortalidad', corto: 'Mortalidad', cortes: [15, 20, 25], etiquetas: ['< 15 %', '15–19 %', '20–24 %', '≥ 25 %'],
+                rampa: () => RAMPA_MUERTE, color: () => COLOR.muerte, casos: r => r.muertes, proporcion: true,
+                valor: r => (r.egresos ? r.muertes / r.egresos * 100 : NaN), formato: v => fmtDec(v, 0) + ' %',
+                texto: 'Muertes de cada 100 egresos CUP', alto: 'más alta', bajo: 'más baja' },
+  oncologia: { nombre: 'Alta por oncología', corto: 'Oncología', cortes: [3, 6, 10], etiquetas: ['< 3 %', '3–5 %', '6–9 %', '≥ 10 %'],
+               rampa: () => rampaDe(COLOR.violeta), color: () => COLOR.violeta, casos: r => r.onco, proporcion: true,
+               valor: r => (r.egresos ? r.onco / r.egresos * 100 : NaN), formato: v => fmtDec(v, 0) + ' %',
+               texto: 'Egresos CUP con alta de oncología, de cada 100', alto: 'más alta', bajo: 'más baja' },
+  estancia: { nombre: 'Estancia mediana', corto: 'Estancia', cortes: [7, 9, 11], etiquetas: ['< 7 d', '7–8 d', '9–10 d', '≥ 11 d'],
+              rampa: () => rampaDe(COLOR.recursos), color: () => COLOR.recursos, proporcion: false,
+              valor: r => (r.egresos ? mediana(r.estadas) : NaN), formato: v => fmtDec(v, 0) + ' d',
+              texto: 'Estancia mediana (días)' },
 };
+
+// Intervalo de confianza 95 % de Wilson para una proporción (en %)
+function wilson(casos, n) {
+  if (!n) return [NaN, NaN];
+  const z = 1.96, p = casos / n, d = 1 + z * z / n;
+  const centro = (p + z * z / (2 * n)) / d, ancho = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+  return [Math.max(0, centro - ancho) * 100, Math.min(1, centro + ancho) * 100];
+}
 
 // Dibuja el mapa en el contenedor id. opciones: ancho (px), etiquetas (nombres de región a la derecha), indicador.
 function dibujarMapa(id, porRegion, { ancho = 150, etiquetas = false, indicador = 'egresos' } = {}) {
@@ -852,7 +875,8 @@ function dibujarMapa(id, porRegion, { ancho = 150, etiquetas = false, indicador 
   for (const c of visibles) {
     const r = porRegion[c] || { egresos: 0, muertes: 0 };
     const v = ind.valor(r);
-    const color = v === null ? COLOR.apagado : rampa[ind.cortes.filter(x => v >= x).length];
+    const pocos = ind.proporcion && r.egresos < MIN_ESTABLE;
+    const color = !isFinite(v) || pocos ? COLOR.apagado : rampa[ind.cortes.filter(x => v >= x).length];
     svg += `<path d="${FORMAS[c].d}" fill="${color}" data-region="${c}" class="${estado.region === c ? 'elegida' : ''}"/>`;
   }
   if (etiquetas) {
@@ -873,9 +897,11 @@ function dibujarMapa(id, porRegion, { ancho = 150, etiquetas = false, indicador 
       tip.style.display = 'block';
       tip.style.left = ev.clientX + 12 + 'px';
       tip.style.top = ev.clientY + 12 + 'px';
+      const v = r && r.egresos ? ind.valor(r) : NaN;
       tip.innerHTML = `<b>${DATOS.regiones[cod]}</b> · zona ${ZONAS[ZONA_DE_REGION[cod]].nombre.toLowerCase()}` +
         `<br>${r ? fmtEntero(r.egresos) : 0} egresos CUP` +
-        (r && r.egresos ? `<br>Mortalidad: ${fmtDec(mortalidadDe(r))} %${r.egresos < MIN_ESTABLE ? ' (pocos egresos)' : ''}` : '');
+        (indicador !== 'egresos' && isFinite(v) ? `<br>${ind.nombre}: ${ind.formato(v)}` +
+          (ind.proporcion && r.egresos < MIN_ESTABLE ? ' (pocos egresos: cifra inestable)' : '') : '');
     });
     p.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
     p.addEventListener('click', () => { tip.style.display = 'none'; elegirRegion(cod); });
@@ -886,7 +912,7 @@ function leyendaMapa(id, indicador = 'egresos') {
   const ind = INDICADORES_MAPA[indicador];
   document.getElementById(id).innerHTML = ind.rampa().map((c, k) =>
     `<div><span style="background:${c}"></span>${ind.etiquetas[k]}</div>`).join('') +
-    (indicador === 'mortalidad' ? `<div><span style="background:${COLOR.apagado}"></span>&lt; ${MIN_ESTABLE} egr.</div>` : '');
+    (ind.proporcion ? `<div><span style="background:${COLOR.apagado}"></span>&lt; ${MIN_ESTABLE} egr.</div>` : '');
 }
 
 // Límites de las zonas cuando se ve el país completo (latitud aproximada entre Coquimbo y Valparaíso, y entre Maule y Ñuble)
@@ -908,7 +934,7 @@ const mortalidadDe = r => (r.egresos ? r.muertes / r.egresos * 100 : NaN);
 const textoMort = r => (r.egresos ? fmtDec(mortalidadDe(r)) + ' %' : '–');
 
 // Resumen por región y por zona con los filtros de Inicio salvo zona, región y servicio. grupo: 'cup' o 'met'.
-function nuevoResumen() { return { egresos: 0, muertes: 0, estadas: [], peso: 0, sev3: 0, pacientes: new Set() }; }
+function nuevoResumen() { return { egresos: 0, muertes: 0, onco: 0, estadas: [], peso: 0, sev3: 0, pacientes: new Set() }; }
 
 function resumenTerritorio({ grupo = 'cup', periodo = periodoActual() } = {}) {
   const porRegion = {}, porZona = {};
@@ -920,6 +946,7 @@ function resumenTerritorio({ grupo = 'cup', periodo = periodoActual() } = {}) {
     for (const s of [porRegion[r] = porRegion[r] || nuevoResumen(), porZona[ZONA_DE_REGION[r]], pais]) {
       s.egresos++;
       s.muertes += E.fallece[i];
+      s.onco += E.onco[i];
       s.estadas.push(E.estada[i]);
       s.peso += E.peso[i];
       s.sev3 += E.sev3[i];
@@ -969,54 +996,159 @@ function actualizarPestanaTerritorio(porRegion, porZona, pais) {
   document.getElementById('t-nota-mapa').textContent =
     `${INDICADORES_MAPA[estado.indicadorMapa].texto} por región del hospital · ${lugar}. Clic en una región para filtrar.`;
 
+  // Aviso: con un solo año muchas regiones tienen pocos egresos y sus cifras son inestables
+  const regiones = regionesVisibles();
+  const pocas = regiones.filter(c => (porRegion[c] || nuevoResumen()).egresos < MIN_ESTABLE).length;
+  const aviso = document.getElementById('t-aviso');
+  const variosAnios = estado.anioDesde === ANIOS[0] && estado.anioHasta === ANIOS[ANIOS.length - 1];
+  aviso.hidden = !(pocas >= 3 && !variosAnios);
+  aviso.querySelector('span').textContent = `En ${textoPeriodo()}, ${pocas} de ${regiones.length} regiones tienen menos de ` +
+    `${MIN_ESTABLE} egresos CUP: sus porcentajes cambian mucho por azar (intervalos anchos). Con más años la comparación es más firme.`;
+
   // Indicadores del ámbito (zona o país)
   const est = mediana(ambito.estadas);
+  const IND = INDICADORES_MAPA;
   const deTotal = zona && pais.egresos ? `${fmtDec(ambito.egresos / pais.egresos * 100, 0)} % de los egresos CUP del país` : 'todas las regiones';
+  const vsPais = (k, txt) => (zona ? `país: ${IND[k].formato(IND[k].valor(pais))}` : txt);
   document.getElementById('t-kpi').innerHTML = [
     kpiTerritorio('Egresos CUP', fmtEntero(ambito.egresos), deTotal, 'tono-volumen'),
     kpiTerritorio('Pacientes únicos', fmtEntero(ambito.pacientes.size),
       ambito.pacientes.size ? `${fmtDec(ambito.egresos / ambito.pacientes.size, 2)} egresos por paciente` : '', 'tono-volumen'),
-    kpiTerritorio('Mortalidad hospitalaria', textoMort(ambito),
-      zona ? `país: ${textoMort(pais)}` : 'de cada 100 egresos', 'tono-muerte'),
-    kpiTerritorio('Estancia mediana', isFinite(est) ? fmtDec(est, 0) + ' días' : '–',
-      zona ? `país: ${fmtDec(mediana(pais.estadas), 0)} días` : 'días entre ingreso y alta', 'tono-recursos'),
+    kpiTerritorio('Mortalidad hospitalaria', textoMort(ambito), vsPais('mortalidad', 'de cada 100 egresos'), 'tono-muerte'),
+    kpiTerritorio('Alta por oncología', ambito.egresos ? fmtDec(ambito.onco / ambito.egresos * 100) + ' %' : '–',
+      vsPais('oncologia', 'de cada 100 egresos'), 'tono-volumen'),
+    kpiTerritorio('Estancia mediana', isFinite(est) ? fmtDec(est, 0) + ' días' : '–', vsPais('estancia', 'entre ingreso y alta'), 'tono-recursos'),
     kpiTerritorio('Peso GRD medio', ambito.egresos ? fmtDec(ambito.peso / ambito.egresos / 100, 2) : '–',
       zona && pais.egresos ? `país: ${fmtDec(pais.peso / pais.egresos / 100, 2)}` : '1 = hospitalización promedio', 'tono-recursos'),
   ].join('');
 
-  // Mortalidad por región (barras naranjo; gris y sin cifra si hay menos de MIN_ESTABLE egresos)
-  const regiones = regionesVisibles();
-  const filas = regiones.map(c => ({ c, r: porRegion[c] || nuevoResumen() }));
-  const valor = f => (f.r.egresos >= MIN_ESTABLE ? mortalidadDe(f.r) : null);
-  document.getElementById('t-nota-mort').textContent =
-    `Muertes de cada 100 egresos CUP ${textoPeriodo()} · ${lugar}: ${textoMort(ambito)} · sin barra: menos de ${MIN_ESTABLE} egresos`;
+  // Gráfico por región con el indicador elegido: todas las regiones con barra; las de pocos egresos en tono pálido.
+  // Proporciones: bigote = IC 95 %. Línea punteada = valor del país (y de la zona, si hay una elegida).
+  const ind = IND[estado.indicadorMapa];
+  const color = ind.color();
+  let filas = regiones.map(c => {
+    const r = porRegion[c] || nuevoResumen();
+    const v = r.egresos ? ind.valor(r) : NaN;
+    return { c, r, v, ic: ind.proporcion ? wilson(ind.casos(r), r.egresos) : null, pocos: r.egresos < MIN_ESTABLE };
+  });
+  if (estado.ordenTerritorio === 'valor') filas = filas.slice().sort((a, b) => (isFinite(b.v) ? b.v : -1) - (isFinite(a.v) ? a.v : -1));
+  const refs = [{ nombre: 'Chile', v: ind.valor(pais) }];
+  if (zona && estado.indicadorMapa !== 'egresos') refs.push({ nombre: `Zona ${zona.toLowerCase()}`, v: ind.valor(ambito) });
+  if (estado.indicadorMapa === 'egresos') refs.length = 0;   // en conteos no hay un valor de referencia comparable
+
+  // Regiones que se alejan del país más allá del azar: su IC 95 % no incluye el valor de Chile
+  const ref = refs.length ? refs[0].v : NaN;
+  const altas = [], bajas = [];
+  if (ind.proporcion) for (const f of filas) {
+    if (f.r.egresos < 10) continue;
+    if (f.ic[0] > ref) altas.push(DATOS.regiones[f.c]); else if (f.ic[1] < ref) bajas.push(DATOS.regiones[f.c]);
+  }
+  const lista = l => (l.length > 1 ? l.slice(0, -1).join(', ') + ' y ' + l[l.length - 1] : l[0]);
+  let hallazgo = '';
+  if (ind.proporcion) {
+    const partes = [];
+    if (altas.length) partes.push(`<b>${ind.alto} que el país:</b> ${lista(altas)}`);
+    if (bajas.length) partes.push(`<b>${ind.bajo} que el país:</b> ${lista(bajas)}`);
+    const mayus = t => t.replace('<b>', '<b>').replace(/<b>(.)/, (m, c) => '<b>' + c.toUpperCase());
+    hallazgo = partes.length ? mayus(partes.join(' · ')) + ' (fuera del margen de error).'
+      : `Ninguna región se aleja de Chile (${ind.formato(ref)}) más de lo que explica el azar.`;
+  } else if (estado.indicadorMapa === 'estancia') {
+    hallazgo = `Chile: estancia mediana de ${ind.formato(ref)}.`;
+  } else {
+    const top = filas.filter(f => isFinite(f.v)).sort((a, b) => b.v - a.v)[0];
+    hallazgo = top ? `<b>${DATOS.regiones[top.c]}</b> concentra ${fmtDec(top.v / Math.max(pais.egresos, 1) * 100, 0)} % de los egresos CUP del país.` : '';
+  }
+  document.getElementById('t-hallazgo').innerHTML = hallazgo;
+  document.getElementById('t-graf-titulo').textContent = `${ind.nombre} por región`;
+  document.getElementById('t-nota-mort').textContent = `${ind.texto} · ${textoPeriodo()} · ${lugar}` +
+    (ind.proporcion ? ` · barra pálida: menos de ${MIN_ESTABLE} egresos · bigote: margen de error (IC 95 %)` : '');
+  document.querySelectorAll('#t-orden .boton-vista').forEach(b => {
+    b.classList.toggle('activo', b.dataset.orden === estado.ordenTerritorio);
+    b.setAttribute('aria-pressed', String(b.dataset.orden === estado.ordenTerritorio));
+  });
+
+  // Eje: hasta 1,5 veces el valor más alto (no hasta el bigote más largo, que con pocos egresos aplasta las barras)
+  const valores = filas.map(f => f.v).filter(isFinite);
+  const maxX = Math.max(...valores, ...refs.map(r => r.v)) * (ind.proporcion ? 1.5 : 1.15) || 1;
+  const decoracion = {
+    id: 'icReferencia',
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea: a, scales: { x } } = chart;
+      ctx.save();
+      // bigotes del IC
+      ctx.strokeStyle = COLOR.tinta; ctx.lineWidth = 1.5;
+      chart.getDatasetMeta(0).data.forEach((barra, j) => {
+        const f = filas[j];
+        if (!f.ic || !isFinite(f.ic[0])) return;
+        const recortado = f.ic[1] > x.max;   // el bigote sigue más allá del eje: se marca con una flecha
+        const x0 = x.getPixelForValue(f.ic[0]), x1 = x.getPixelForValue(Math.min(f.ic[1], x.max)), y = barra.y;
+        ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.moveTo(x0, y - 5); ctx.lineTo(x0, y + 5);
+        if (recortado) { ctx.moveTo(x1 - 6, y - 4); ctx.lineTo(x1, y); ctx.lineTo(x1 - 6, y + 4); }
+        else { ctx.moveTo(x1, y - 5); ctx.lineTo(x1, y + 5); }
+        ctx.stroke();
+      });
+      // líneas de referencia
+      refs.forEach((r, k) => {
+        if (!isFinite(r.v)) return;
+        const px = x.getPixelForValue(r.v);
+        ctx.strokeStyle = k === 0 ? COLOR.tinta : color; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.moveTo(px, a.top - 4); ctx.lineTo(px, a.bottom); ctx.stroke(); ctx.setLineDash([]);
+        // etiqueta sobre la línea, una fila por referencia; se corre hacia adentro si se saldría del gráfico
+        ctx.fillStyle = k === 0 ? COLOR.tinta : color; ctx.font = '600 11.5px ' + Chart.defaults.font.family;
+        const texto = `${r.nombre}: ${ind.formato(r.v)}`, ancho = ctx.measureText(texto).width;
+        const xt = Math.min(Math.max(px, a.left + ancho / 2), a.right - ancho / 2);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText(texto, xt, a.top - 6 - k * 17);
+      });
+      // valor al final de cada barra (después del bigote) y n si es poco estable
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      chart.getDatasetMeta(0).data.forEach((barra, j) => {
+        const f = filas[j];
+        if (!isFinite(f.v)) return;
+        const fin = Math.max(barra.x, f.ic && isFinite(f.ic[1]) ? x.getPixelForValue(Math.min(f.ic[1], x.max)) : barra.x);
+        ctx.font = '600 11.5px ' + Chart.defaults.font.family; ctx.fillStyle = f.pocos && ind.proporcion ? COLOR.texto : COLOR.tinta;
+        const texto = ind.formato(f.v) + (f.pocos && ind.proporcion ? `  (n = ${f.r.egresos})` : '');
+        ctx.fillText(texto, fin + 6, barra.y);
+      });
+      ctx.restore();
+    },
+  };
   dibujarGrafico('g-t-mort', {
     type: 'bar',
-    data: { labels: filas.map(f => DATOS.regiones[f.c]),
-            datasets: [{ data: filas.map(valor), n: filas.map(f => f.r.egresos), borderRadius: 4, barPercentage: 0.75,
-                         backgroundColor: filas.map(f => (estado.region === f.c ? COLOR.naranjo : COLOR.muerte)) }] },
+    data: { labels: filas.map(f => DATOS.regiones[f.c] + (!estado.zona && estado.ordenTerritorio === 'valor'
+              ? ` (${ZONAS[ZONA_DE_REGION[f.c]].nombre.toLowerCase()})` : '')),
+            datasets: [{ data: filas.map(f => (isFinite(f.v) ? f.v : null)), borderRadius: 4, barPercentage: 0.72,
+                         backgroundColor: filas.map(f => (f.pocos && ind.proporcion ? mezclar(COLOR.tarjeta, color, 0.3)
+                           : estado.region === f.c ? COLOR.naranjo : color)),
+                         borderColor: filas.map(f => (estado.region === f.c ? COLOR.tinta : 'transparent')), borderWidth: 1.5 }] },
     options: {
-      indexAxis: 'y', maintainAspectRatio: false,
-      layout: { padding: { right: 40 } },
-      scales: { x: { ...ejeLimpio(), beginAtZero: true, ticks: { callback: v => fmtEntero(v) + ' %' } },
+      indexAxis: 'y', maintainAspectRatio: false, animation: false,
+      layout: { padding: { right: 90, top: refs.length > 1 ? 44 : 24 } },   // espacio para las etiquetas de referencia
+      scales: { x: { ...ejeLimpio(), beginAtZero: true, max: maxX, ticks: { callback: v => ind.formato(v) } },
                 y: { grid: { display: false }, border: { display: false }, ticks: { autoSkip: false } } },
-      plugins: { legend: { display: false },
-                 tooltip: { callbacks: { label: c => `${fmtDec(c.raw)} % mueren (${fmtEntero(c.dataset.n[c.dataIndex])} egresos)` } },
-                 etiquetasBarras: { mostrar: true, formato: v => fmtDec(v, 0) + ' %' } },
+      plugins: { legend: { display: false }, etiquetasBarras: { mostrar: false },
+                 tooltip: { callbacks: { label: c => {   // incluye el IC completo aunque el bigote se recorte
+                   const f = filas[c.dataIndex];
+                   return [`${ind.nombre}: ${ind.formato(f.v)} (${fmtEntero(f.r.egresos)} egresos)`]
+                     .concat(f.ic ? [`Margen de error (IC 95 %): ${fmtDec(f.ic[0], 0)} a ${fmtDec(f.ic[1], 0)} %`] : [])
+                     .concat(f.pocos && ind.proporcion ? ['Pocos egresos: cifra inestable'] : []);
+                 } } } },
       onClick: (ev, el) => { if (el.length) elegirRegion(filas[el[0].index].c); },
     },
+    plugins: [decoracion],
   });
-  document.querySelector('#territorio .alto-t-mort').style.height = (60 + regiones.length * 30) + 'px';
+  document.querySelector('#territorio .alto-t-mort').style.height = (70 + regiones.length * 32) + 'px';
 
   // Detalle por región
   const total = pais.egresos;
   let html = '<tr><th>Región</th><th>Egresos</th><th>% del país</th><th>Pacientes</th><th>Mortalidad</th>' +
-             '<th>Estancia</th><th>Sev. 3</th><th>Peso</th></tr>';
+             '<th>Oncología</th><th>Estancia</th><th>Sev. 3</th><th>Peso</th></tr>';
   const fila = (nombre, r, clase, atributos) => {
     const e = mediana(r.estadas);
     return `<tr class="${clase}" ${atributos}><td>${nombre}</td><td>${fmtEntero(r.egresos)}</td>` +
       `<td>${total ? fmtDec(r.egresos / total * 100, 1) + ' %' : '–'}</td><td>${fmtEntero(r.pacientes.size)}</td>` +
       `<td class="${r.egresos < MIN_ESTABLE ? 'poco' : ''}">${textoMort(r)}</td>` +
+      `<td class="${r.egresos < MIN_ESTABLE ? 'poco' : ''}">${r.egresos ? fmtDec(r.onco / r.egresos * 100) + ' %' : '–'}</td>` +
       `<td>${isFinite(e) ? fmtDec(e, 0) + ' d' : '–'}</td>` +
       `<td>${r.egresos ? fmtDec(r.sev3 / r.egresos * 100) + ' %' : '–'}</td>` +
       `<td>${r.egresos ? fmtDec(r.peso / r.egresos / 100, 2) : '–'}</td></tr>`;
@@ -1115,6 +1247,18 @@ function conectarPestanasZona() {
     estado.indicadorMapa = b.dataset.indicador;
     actualizarTerritorio();
   }));
+  document.querySelectorAll('#t-orden .boton-vista').forEach(b => b.addEventListener('click', () => {
+    estado.ordenTerritorio = b.dataset.orden;
+    actualizarTerritorio();
+  }));
+  // Aviso de pocos egresos: pasa el filtro de años a todo el período (2019–2025)
+  document.getElementById('t-ver-todo').addEventListener('click', () => {
+    estado.anioDesde = ANIOS[0];
+    estado.anioHasta = ANIOS[ANIOS.length - 1];
+    document.getElementById('f-anio-desde').value = estado.anioDesde;
+    document.getElementById('f-anio-hasta').value = estado.anioHasta;
+    actualizarTodo();
+  });
 }
 
 // ---------------------------------------------------------------- tabla comparativa
@@ -1531,21 +1675,13 @@ const AYUDA = {
   charlson: ['Índice de Charlson', 'Resume en un número la carga de enfermedades crónicas: suma 1, 2, 3 o 6 puntos por ' +
     'cada una según su gravedad (códigos de Quan, 2005). No cuenta el cáncer ni la metástasis, porque todos los ' +
     'pacientes los tienen. 0 puntos = ninguna enfermedad del índice.'],
-  territorio: ['Mapa por región', 'Color según el N° de egresos CUP de cada región en el período (en la pestaña Territorio ' +
-    'también según la mortalidad). Con el filtro Zona, el mapa muestra y acerca solo las regiones de esa zona; sin zona, ' +
+  territorio: ['Mapa por región', 'Color según el indicador elegido: mortalidad, alta por oncología (de cada 100 egresos ' +
+    'CUP, oncología es la especialidad que da el alta), estancia mediana o N° de egresos. Con el filtro Zona, el mapa muestra y acerca solo las regiones de esa zona; sin zona, ' +
     'las líneas punteadas separan el norte, el centro y el sur. La región es la del hospital (según el DEIS), no la del domicilio del paciente.'],
-  regiones: ['Regiones por zona', 'Cada zona muestra su subtotal y debajo sus regiones. <b>% del país:</b> parte de los ' +
-    'egresos CUP del período que ocurrió ahí. <b>Mortalidad:</b> muertes de cada 100 egresos, sin ajustar por edad ni ' +
-    'gravedad; en gris si hay menos de 30 egresos.'],
-  cMort: ['Mortalidad por zona', 'Muertes en el hospital de cada 100 egresos de cada zona, para el CUP y para los cinco ' +
-    'metastásicos juntos. Sin ajustar por edad ni gravedad. Con menos de 30 egresos no se dibuja la barra.'],
-  cAnios: ['Egresos CUP por año', 'N° de hospitalizaciones por CUP en cada zona y año, de 2019 a 2025. No usa el filtro ' +
-    'de años, para mostrar la tendencia completa; sí usa sexo, edad, diagnóstico e ingreso.'],
-  cTabla: ['CUP frente a metastásicos', 'Para cada zona: egresos y pacientes CUP, mortalidad del CUP y de los cinco ' +
-    'metastásicos, y su diferencia en puntos porcentuales (+ = el CUP muere más). Sev. 3: % con severidad GRD máxima.'],
-  tDetalle: ['Detalle por región', 'Indicadores de cada región según el hospital donde ocurrió el egreso. <b>% del país:</b> ' +
-    'parte de los egresos CUP de Chile. <b>Pacientes:</b> personas distintas. <b>Estancia:</b> mediana en días. ' +
-    '<b>Sev. 3:</b> % con severidad GRD máxima. <b>Peso:</b> peso GRD medio.'],
+  regiones: ['Comparación por región', 'Valor de cada región para el indicador elegido. <b>Bigote:</b> margen de error ' +
+    '(intervalo de confianza del 95 %, Wilson): con pocos egresos es ancho porque la cifra cambia mucho por azar. ' +
+    '<b>Barra pálida:</b> menos de 30 egresos. <b>Línea punteada:</b> el valor de Chile (y de la zona). Una región se aleja ' +
+    'del país más allá del azar cuando su bigote no toca la línea de Chile. Sin ajustar por edad ni gravedad.'],
   calculadora: ['Calculadora de estadía', 'Usa la regresión lineal de la pregunta P13 del notebook: suma el efecto de ' +
     'cada característica elegida y devuelve los días promedio de un paciente con ese perfil. No es un pronóstico ' +
     'individual.'],

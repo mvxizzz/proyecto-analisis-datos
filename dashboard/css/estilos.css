@@ -384,7 +384,18 @@ select:disabled { background: var(--deshabilitado); color: var(--texto-3); }
 .controles-territorio { display: flex; gap: 18px; flex-wrap: wrap; }
 .fila-territorio-t { display: grid; grid-template-columns: 400px 1fr; gap: 14px; align-items: start; }
 .mapa-grande { margin-top: 14px; }
-#t-kpi { grid-template-columns: repeat(5, 1fr); }
+#t-kpi { grid-template-columns: repeat(6, 1fr); }
+#t-kpi .kpi { padding: 14px; }
+.cabeza-panel { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cabeza-panel .boton-vista { padding: 4px 10px; font-size: 12.5px; }
+.hallazgo { margin: 2px 0 10px; padding: 8px 12px; border-radius: 8px; background: var(--acento-fondo, var(--fondo-suave));
+            font-size: 13px; color: var(--tinta); }
+.hallazgo:empty { display: none; }
+.aviso-periodo { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 10px 14px; border-radius: 10px;
+                 background: var(--s-recursos-fondo); color: var(--tinta); font-size: 13px; border: 1px solid var(--borde); }
+.aviso-periodo[hidden] { display: none; }
+.aviso-periodo svg { flex: none; color: var(--s-recursos); }
+.aviso-periodo span { flex: 1; }
 #t-kpi .kpi-valor { font-size: 24px; }
 .tabla-regiones tr.fila-total td { font-weight: 700; border-top: 2px solid var(--borde); }
 .leyenda-mapa { display: flex; gap: 4px; margin-top: 12px; font-size: 11px; color: var(--texto-3); }
