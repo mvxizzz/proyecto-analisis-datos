@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard CUP Chile (v0.2)</title>
+  <title>Dashboard CUP Chile (v0.3)</title>
   <link rel="stylesheet" href="css/estilos.css">
   <script>
     // Alto contraste antes de dibujar (evita el parpadeo): preferencia guardada o, si no hay, la del sistema
@@ -53,159 +53,176 @@
 <main>
 
 <!-- ===================== INICIO ===================== -->
+<!-- Secciones: filtros · indicadores · actividad y perfil · comorbilidades. El mapa por zona está en la pestaña Territorio.
+     Los elementos con data-ayuda reciben un botón (i) con la explicación de la variable y su metodología (app.js, AYUDA). -->
 <section id="inicio" class="seccion activa">
 
-  <div class="fila-filtros">
-    <div class="tarjeta filtros">
-      <label>Años
-        <span class="rango">
-          <select id="f-anio-desde" aria-label="Desde el año"></select>
-          <span>–</span>
-          <select id="f-anio-hasta" aria-label="Hasta el año"></select>
-        </span>
-      </label>
-      <label>Región
-        <select id="f-region"><option value="0">Todas</option></select>
-      </label>
-      <label>Servicio de Salud
-        <select id="f-servicio"><option value="-1">Todos</option></select>
-      </label>
-      <div class="campo">
-        <label for="f-hospital">Hospital</label>
-        <div class="buscador">
-          <input id="f-hospital" type="text" placeholder="Todos · busca por nombre o código" autocomplete="off"
-                 role="combobox" aria-expanded="false" aria-controls="lista-hospitales" aria-autocomplete="list">
-          <button type="button" id="limpiar-hospital" class="limpiar" aria-label="Quitar hospital" hidden>×</button>
-          <ul id="lista-hospitales" class="lista-buscador" role="listbox" hidden></ul>
-        </div>
+  <div class="tarjeta filtros">
+    <label>Años
+      <span class="rango">
+        <select id="f-anio-desde" aria-label="Desde el año"></select>
+        <span>–</span>
+        <select id="f-anio-hasta" aria-label="Hasta el año"></select>
+      </span>
+    </label>
+    <label><span class="con-ayuda" data-ayuda="zona">Zona</span>
+      <select id="f-zona">
+        <option value="">Todas</option>
+        <option value="norte">Norte</option>
+        <option value="centro">Centro</option>
+        <option value="sur">Sur</option>
+      </select>
+    </label>
+    <label>Región
+      <select id="f-region"><option value="0">Todas</option></select>
+    </label>
+    <label>Servicio de Salud
+      <select id="f-servicio"><option value="-1">Todos</option></select>
+    </label>
+    <div class="campo">
+      <label for="f-hospital">Hospital</label>
+      <div class="buscador">
+        <input id="f-hospital" type="text" placeholder="Todos · busca por nombre o código" autocomplete="off"
+               role="combobox" aria-expanded="false" aria-controls="lista-hospitales" aria-autocomplete="list">
+        <button type="button" id="limpiar-hospital" class="limpiar" aria-label="Quitar hospital" hidden>×</button>
+        <ul id="lista-hospitales" class="lista-buscador" role="listbox" hidden></ul>
       </div>
-      <label>Sexo
-        <select id="f-sexo">
-          <option value="-1">Todos</option>
-          <option value="1">Mujeres</option>
-          <option value="0">Hombres</option>
-        </select>
-      </label>
-      <label>Edad
-        <span class="rango">
-          <select id="f-edad-desde" aria-label="Desde la edad"></select>
-          <span>–</span>
-          <select id="f-edad-hasta" aria-label="Hasta la edad"></select>
-        </span>
-      </label>
-      <label>Diagnóstico CIE-10
-        <select id="f-diagnostico">
-          <option value="c800">C80.0</option>
-          <option value="c809">C80.0 + C80.9</option>
-        </select>
-      </label>
-      <label>Tipo de ingreso
-        <select id="f-ingreso">
-          <option value="-1">Todos</option>
-          <option value="0">Urgencia</option>
-          <option value="1">Programada</option>
-        </select>
-      </label>
     </div>
+    <label>Sexo
+      <select id="f-sexo">
+        <option value="-1">Todos</option>
+        <option value="1">Mujeres</option>
+        <option value="0">Hombres</option>
+      </select>
+    </label>
+    <label><span class="con-ayuda" data-ayuda="edadFiltro">Edad</span>
+      <span class="rango">
+        <select id="f-edad-desde" aria-label="Desde la edad"></select>
+        <span>–</span>
+        <select id="f-edad-hasta" aria-label="Hasta la edad"></select>
+      </span>
+    </label>
+    <label><span class="con-ayuda" data-ayuda="diagnostico">Diagnóstico CIE-10</span>
+      <select id="f-diagnostico">
+        <option value="c800">C80.0</option>
+        <option value="c809">C80.0 + C80.9</option>
+      </select>
+    </label>
+    <label><span class="con-ayuda" data-ayuda="ingreso">Tipo de ingreso</span>
+      <select id="f-ingreso">
+        <option value="-1">Todos</option>
+        <option value="0">Urgencia</option>
+        <option value="1">Programada</option>
+      </select>
+    </label>
+  </div>
 
-    <div class="tarjeta vista">
+  <!-- ---------- indicadores ---------- -->
+  <div class="cabeza-seccion">
+    <div>
+      <span class="ceja">Resumen</span>
+      <h2 class="titulo-seccion">Indicadores <span id="periodo-kpi"></span></h2>
+    </div>
+    <div class="vista" role="group" aria-label="Vista">
       <span class="etiqueta">Vista</span>
-      <div class="botones-vista">
-        <button id="vista-cup" class="boton-vista activo">Solo CUP</button>
+      <div class="botones-vista" id="botones-vista-inicio">
+        <button id="vista-cup" class="boton-vista activo" aria-pressed="true">Solo CUP</button>
         <button id="vista-comparar" class="boton-vista">CUP vs. metastásicos</button>
       </div>
     </div>
   </div>
 
   <div class="fila-kpi">
-    <div class="tarjeta kpi">
+    <div class="tarjeta kpi tono-volumen">
       <div class="icono"><svg viewBox="0 0 24 24"><path d="M2 18V7"/><path d="M2 14h20v4"/><path d="M22 14v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="6.5" cy="10.5" r="1.5"/></svg></div>
-      <div><span class="kpi-nombre">Egresos CUP</span><div class="kpi-valor" id="kpi-egresos">–</div><div class="kpi-var" id="var-egresos"></div><div class="kpi-ref" id="ref-egresos"></div></div>
+      <div><span class="kpi-nombre con-ayuda" data-ayuda="egresos">Egresos CUP</span><div class="kpi-valor" id="kpi-egresos">–</div><div class="kpi-var" id="var-egresos"></div><div class="kpi-ref" id="ref-egresos"></div></div>
     </div>
-    <div class="tarjeta kpi">
+    <div class="tarjeta kpi tono-volumen">
       <div class="icono"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14a6 6 0 0 1 3.5 6"/></svg></div>
-      <div><span class="kpi-nombre">Pacientes únicos</span><div class="kpi-valor" id="kpi-pacientes">–</div><div class="kpi-var" id="var-pacientes"></div><div class="kpi-ref" id="ref-pacientes"></div></div>
+      <div><span class="kpi-nombre con-ayuda" data-ayuda="pacientes">Pacientes únicos</span><div class="kpi-valor" id="kpi-pacientes">–</div><div class="kpi-var" id="var-pacientes"></div><div class="kpi-ref" id="ref-pacientes"></div></div>
     </div>
-    <div class="tarjeta kpi">
-      <div class="icono naranjo"><svg viewBox="0 0 24 24"><polyline points="2 12 6 12 9 4 15 20 18 12 22 12"/></svg></div>
-      <div><span class="kpi-nombre">Mortalidad hospitalaria</span><div class="kpi-valor" id="kpi-mortalidad">–</div><div class="kpi-var" id="var-mortalidad"></div><div class="kpi-ref" id="ref-mortalidad"></div></div>
+    <div class="tarjeta kpi tono-muerte">
+      <div class="icono"><svg viewBox="0 0 24 24"><polyline points="2 12 6 12 9 4 15 20 18 12 22 12"/></svg></div>
+      <div><span class="kpi-nombre con-ayuda" data-ayuda="mortalidad">Mortalidad hospitalaria</span><div class="kpi-valor" id="kpi-mortalidad">–</div><div class="kpi-var" id="var-mortalidad"></div><div class="kpi-ref" id="ref-mortalidad"></div></div>
     </div>
-    <div class="tarjeta kpi">
+    <div class="tarjeta kpi tono-recursos">
       <div class="icono"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></div>
-      <div><span class="kpi-nombre">Estancia mediana</span><div class="kpi-valor" id="kpi-estada">–</div><div class="kpi-var" id="var-estada"></div><div class="kpi-ref" id="ref-estada"></div></div>
+      <div><span class="kpi-nombre con-ayuda" data-ayuda="estancia">Estancia mediana</span><div class="kpi-valor" id="kpi-estada">–</div><div class="kpi-var" id="var-estada"></div><div class="kpi-ref" id="ref-estada"></div></div>
     </div>
-    <div class="tarjeta kpi">
+    <div class="tarjeta kpi tono-recursos">
       <div class="icono"><svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M3 21h18"/></svg></div>
-      <div><span class="kpi-nombre">Peso GRD medio</span><div class="kpi-valor" id="kpi-peso">–</div><div class="kpi-var" id="var-peso"></div><div class="kpi-ref" id="ref-peso"></div></div>
+      <div><span class="kpi-nombre con-ayuda" data-ayuda="peso">Peso GRD medio</span><div class="kpi-valor" id="kpi-peso">–</div><div class="kpi-var" id="var-peso"></div><div class="kpi-ref" id="ref-peso"></div></div>
     </div>
   </div>
 
-  <div class="cuerpo">
-    <div class="columna-principal">
-      <div class="fila-a">
-        <div class="tarjeta panel">
-          <h2><svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg>Sitios de metástasis más frecuentes</h2>
-          <p class="nota" id="nota-sitios"></p>
-          <div class="caja-grafico alto-sitios"><canvas id="g-sitios"></canvas></div>
-        </div>
-        <div class="tarjeta panel">
-          <h2><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><polyline points="7 14 11 10 14 13 20 7"/></svg>Evolución mensual de egresos CUP</h2>
-          <p class="nota" id="nota-mensual"></p>
-          <div class="caja-grafico alto-mensual"><canvas id="g-mensual"></canvas></div>
-        </div>
+  <!-- ---------- actividad y perfil ---------- -->
+  <div class="bloque tono-volumen">
+    <div class="cabeza-seccion">
+      <div>
+        <span class="ceja">Bloque 1</span>
+        <h2 class="titulo-seccion">Actividad y perfil del paciente</h2>
+        <p class="bajada">Dónde está la metástasis, cuántos se hospitalizan cada mes, quiénes son y cómo se comparan con los otros cánceres.</p>
       </div>
-
-      <div class="fila-b">
-        <div class="tarjeta panel">
-          <h2><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Distribución por sexo</h2>
-          <p class="nota" id="nota-sexo"></p>
-          <div class="caja-grafico alto-sexo"><canvas id="g-sexo"></canvas></div>
-        </div>
-        <div class="tarjeta panel">
-          <h2><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14a6 6 0 0 1 3.5 6"/></svg>Distribución por edad</h2>
-          <p class="nota" id="nota-edad"></p>
-          <div class="caja-grafico alto-edad"><canvas id="g-edad"></canvas></div>
-        </div>
-        <div class="tarjeta panel">
-          <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Comparación con metastásicos</h2>
-          <p class="nota" id="nota-tabla"></p>
-          <table class="tabla" id="tabla-comparacion"></table>
-          <p class="nota pie-tabla">Sev. 3 = % con severidad GRD máxima · Ch. ≥ 2 = % con índice de Charlson de 2 o más · Peso = peso GRD medio · Var. = egresos frente al período anterior del mismo largo</p>
-        </div>
+    </div>
+    <div class="fila-a">
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg><span class="con-ayuda" data-ayuda="sitios">Sitios de metástasis más frecuentes</span></h2>
+        <p class="nota" id="nota-sitios"></p>
+        <div class="caja-grafico alto-sitios"><canvas id="g-sitios"></canvas></div>
       </div>
-
-      <div class="fila-c">
-        <div class="tarjeta panel">
-          <h2><svg viewBox="0 0 24 24"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></svg>Comorbilidades más frecuentes</h2>
-          <p class="nota" id="nota-comorb"></p>
-          <div class="caja-grafico alto-comorb"><canvas id="g-comorb"></canvas></div>
-        </div>
-        <div class="tarjeta panel">
-          <h2><svg viewBox="0 0 24 24"><polyline points="2 12 6 12 9 4 15 20 18 12 22 12"/></svg>Mortalidad según comorbilidad</h2>
-          <p class="nota" id="nota-mortcomorb"></p>
-          <div class="caja-grafico alto-comorb"><canvas id="g-mortcomorb"></canvas></div>
-        </div>
-      </div>
-
-      <div class="fila-d">
-        <div class="tarjeta panel">
-          <h2><svg viewBox="0 0 24 24"><path d="M4 20V14"/><path d="M10 20V10"/><path d="M16 20V6"/><path d="M3 21h18"/></svg>Índice de Charlson</h2>
-          <p class="nota" id="nota-charlson"></p>
-          <div class="caja-grafico alto-charlson"><canvas id="g-charlson"></canvas></div>
-          <p class="nota pie-tabla">Suma 1 a 6 puntos por cada enfermedad crónica registrada (Quan 2005), sin contar el cáncer ni la metástasis. Pasa el mouse para ver la mortalidad de cada categoría.</p>
-        </div>
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><polyline points="7 14 11 10 14 13 20 7"/></svg><span class="con-ayuda" data-ayuda="mensual">Evolución mensual de egresos CUP</span></h2>
+        <p class="nota" id="nota-mensual"></p>
+        <div class="caja-grafico alto-mensual"><canvas id="g-mensual"></canvas></div>
       </div>
     </div>
 
-    <div class="tarjeta panel territorio">
-      <h2><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Distribución territorial</h2>
-      <p class="nota" id="nota-mapa"></p>
-      <div class="territorio-cuerpo">
-        <div class="mapa" id="mapa"></div>
-        <table class="tabla tabla-regiones" id="tabla-regiones"></table>
+    <div class="fila-b">
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span class="con-ayuda" data-ayuda="sexo">Distribución por sexo</span></h2>
+        <p class="nota" id="nota-sexo"></p>
+        <div class="caja-grafico alto-sexo"><canvas id="g-sexo"></canvas></div>
       </div>
-      <div class="leyenda-mapa" id="leyenda-mapa"></div>
-      <p class="nota">Clic en una región para filtrar. Mortalidad en gris: menos de 30 egresos (cifra poco estable). Región del hospital, no del domicilio.</p>
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7"/><path d="M18 14a6 6 0 0 1 3.5 6"/></svg><span class="con-ayuda" data-ayuda="edad">Distribución por edad</span></h2>
+        <p class="nota" id="nota-edad"></p>
+        <div class="caja-grafico alto-edad"><canvas id="g-edad"></canvas></div>
+      </div>
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="con-ayuda" data-ayuda="tabla">Comparación con metastásicos</span></h2>
+        <p class="nota" id="nota-tabla"></p>
+        <div class="caja-tabla"><table class="tabla" id="tabla-comparacion"></table></div>
+        <p class="nota pie-tabla">Dif. % = diferencia porcentual de los egresos frente al período anterior del mismo largo · Sev. 3 = % con severidad GRD máxima · Ch. ≥ 2 = % con índice de Charlson de 2 o más · Peso = peso GRD medio</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- comorbilidades ---------- -->
+  <div class="bloque tono-comorb">
+    <div class="cabeza-seccion">
+      <div>
+        <span class="ceja">Bloque 2</span>
+        <h2 class="titulo-seccion">Comorbilidades</h2>
+        <p class="bajada">Comorbilidad: enfermedad crónica que el paciente tiene además del cáncer y que no es el motivo de la hospitalización (diagnósticos 2 a 35 del egreso).</p>
+      </div>
+    </div>
+    <div class="fila-c">
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></svg><span class="con-ayuda" data-ayuda="comorb">Comorbilidades más frecuentes</span></h2>
+        <p class="nota" id="nota-comorb"></p>
+        <div class="caja-grafico alto-comorb"><canvas id="g-comorb"></canvas></div>
+      </div>
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><polyline points="2 12 6 12 9 4 15 20 18 12 22 12"/></svg><span class="con-ayuda" data-ayuda="mortcomorb">Mortalidad según comorbilidad</span></h2>
+        <p class="nota" id="nota-mortcomorb"></p>
+        <div class="caja-grafico alto-comorb"><canvas id="g-mortcomorb"></canvas></div>
+      </div>
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><path d="M4 20V14"/><path d="M10 20V10"/><path d="M16 20V6"/><path d="M3 21h18"/></svg><span class="con-ayuda" data-ayuda="charlson">Índice de Charlson</span></h2>
+        <p class="nota" id="nota-charlson"></p>
+        <div class="caja-grafico alto-comorb"><canvas id="g-charlson"></canvas></div>
+        <p class="nota pie-tabla">Pasa el mouse sobre una barra para ver la mortalidad de cada categoría.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -215,7 +232,7 @@
   <div id="contenido-modelo">
     <div class="fila-modelo">
       <div class="tarjeta panel" id="calculadora">
-        <h2><svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8"/><path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/><path d="M8 15h.01"/><path d="M12 15h.01"/><path d="M16 15h.01"/><path d="M8 19h8"/></svg>Calculadora de estadía esperada</h2>
+        <h2><svg viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8"/><path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/><path d="M8 15h.01"/><path d="M12 15h.01"/><path d="M16 15h.01"/><path d="M8 19h8"/></svg><span class="con-ayuda" data-ayuda="calculadora">Calculadora de estadía esperada</span></h2>
         <p class="nota">Elige un perfil de paciente y el modelo calcula cuántos días dura en promedio su hospitalización. Es un promedio para pacientes con ese perfil, no un pronóstico individual. No depende de los filtros de Inicio.</p>
         <!-- Selectores y casillas: los arma app.js a partir del modelo (DATOS.modelo.entradas) -->
         <div class="campos-calculadora" id="campos-calculadora"></div>
@@ -226,19 +243,19 @@
         </div>
       </div>
       <div class="tarjeta panel">
-        <h2><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M12 7h7"/><path d="M12 12H6"/><path d="M12 17h4"/></svg>Qué alarga o acorta la estadía</h2>
+        <h2><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M12 7h7"/><path d="M12 12H6"/><path d="M12 17h4"/></svg><span class="con-ayuda" data-ayuda="coeficientes">Qué alarga o acorta la estadía</span></h2>
         <p class="nota">% de cambio en los días de estadía por cada característica, con todas las demás iguales (regresión lineal de log(1 + días)). Naranjo: la alarga; azul: la acorta; gris: sin diferencia significativa. Pasa el mouse para ver el IC 95 %.</p>
         <div class="caja-grafico alto-coef"><canvas id="g-coef"></canvas></div>
         <p class="nota pie-tabla">Las barras con → pasan de +100 %: su valor real está escrito. Referencias: CUP, 60–69 años, hombre, ingreso programado u otro, llega desde urgencia, motivo el propio cáncer y gravedad baja.</p>
       </div>
     </div>
     <div class="tarjeta panel calidad">
-      <h2><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Calidad del modelo (egresos que no vio)</h2>
+      <h2><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span class="con-ayuda" data-ayuda="calidad">Calidad del modelo (egresos que no vio)</span></h2>
       <div class="calidad-modelo" id="calidad-modelo"></div>
       <p class="nota">El modelo ordena bien a los pacientes (los de estadía corta y larga), pero cada paciente varía mucho: sirve para comparar perfiles y planificar camas. Solo usa datos del ingreso; lo que pasa durante la hospitalización (UCI, cirugías, complicaciones) no está. Detalle en el notebook, pregunta P13.</p>
     </div>
     <div class="tarjeta panel calidad">
-      <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Correlaciones entre las variables del ingreso</h2>
+      <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg><span class="con-ayuda" data-ayuda="correlaciones">Correlaciones entre las variables del ingreso</span></h2>
       <p class="nota">Correlación de Pearson (r, de −1 a 1) entre cada par de variables; las categóricas como 0/1. Rojo: suben juntas; azul: cuando una sube, la otra baja; gris: sin relación. La primera columna (recuadro) es la relación con la estadía, la variable que el modelo predice. Con este mapa se eligieron las variables del modelo. Pasa el mouse sobre una casilla para ver el par.</p>
       <div class="caja-correlaciones"><table class="mapa-correlaciones" id="mapa-correlaciones"></table></div>
     </div>
@@ -249,26 +266,110 @@
 <!-- ===================== PESTAÑAS EN DESARROLLO ===================== -->
 
 <section id="comparaciones" class="seccion">
-  <div class="tarjeta en-desarrollo">
-    <h2>Comparaciones · en desarrollo</h2>
-    <p>Comparación del CUP con los cinco cánceres metastásicos. Planificado para la semana 11:</p>
-    <ul>
-      <li>Mortalidad "de cada 100" con su margen de error.</li>
-      <li>Mortalidad ajustada por edad, sexo, gravedad y tipo de ingreso (regresión logística).</li>
-      <li>Estadía, UCI y pabellón por grupo.</li>
-    </ul>
+  <div class="bloque tono-territorio primero">
+    <div class="cabeza-seccion">
+      <div>
+        <span class="ceja">Comparaciones</span>
+        <h2 class="titulo-seccion" id="c-titulo"></h2>
+        <p class="bajada">Las tres zonas con los filtros de Inicio, salvo zona y región. Violeta: CUP; gris: los cinco cánceres metastásicos juntos.</p>
+      </div>
+    </div>
+    <div class="fila-c">
+      <div class="tarjeta panel tono-muerte">
+        <h2><svg viewBox="0 0 24 24"><polyline points="2 12 6 12 9 4 15 20 18 12 22 12"/></svg><span class="con-ayuda" data-ayuda="cMort">Mortalidad por zona</span></h2>
+        <p class="nota">Muertes de cada 100 egresos · sin barra: menos de 30 egresos</p>
+        <div class="caja-grafico alto-sexo"><canvas id="g-c-mort"></canvas></div>
+      </div>
+      <div class="tarjeta panel tono-recursos">
+        <h2><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg><span class="con-ayuda" data-ayuda="estancia">Estancia mediana por zona</span></h2>
+        <p class="nota">Días entre el ingreso y el alta (mediana)</p>
+        <div class="caja-grafico alto-sexo"><canvas id="g-c-estancia"></canvas></div>
+      </div>
+      <div class="tarjeta panel tono-recursos">
+        <h2><svg viewBox="0 0 24 24"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M3 21h18"/></svg><span class="con-ayuda" data-ayuda="peso">Peso GRD medio por zona</span></h2>
+        <p class="nota">Recursos que consume la hospitalización (1 = promedio)</p>
+        <div class="caja-grafico alto-sexo"><canvas id="g-c-peso"></canvas></div>
+      </div>
+    </div>
+    <div class="fila-a fila-separada">
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><polyline points="7 14 11 10 14 13 20 7"/></svg><span class="con-ayuda" data-ayuda="cAnios">Egresos CUP por año en cada zona</span></h2>
+        <p class="nota">Todos los años, para ver la tendencia · línea continua: norte; rayas: centro; puntos: sur</p>
+        <div class="caja-grafico alto-mensual"><canvas id="g-c-anios"></canvas></div>
+      </div>
+      <div class="tarjeta panel">
+        <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg><span class="con-ayuda" data-ayuda="cTabla">CUP frente a metastásicos en cada zona</span></h2>
+        <p class="nota">Diferencia = mortalidad CUP − mortalidad metastásicos, en puntos porcentuales</p>
+        <div class="caja-tabla"><table class="tabla" id="c-tabla"></table></div>
+        <p class="nota pie-tabla">Sin ajustar por edad ni gravedad: una diferencia entre zonas es una alerta para revisar, no un veredicto.</p>
+      </div>
+    </div>
+    <p class="nota pendiente">Pendiente para la semana 11: mortalidad "de cada 100" con su margen de error y mortalidad ajustada por edad, sexo, gravedad y tipo de ingreso (regresión logística, notebook P8–P9).</p>
   </div>
 </section>
 
 <section id="territorio" class="seccion">
-  <div class="tarjeta en-desarrollo">
-    <h2>Territorio · en desarrollo</h2>
-    <p>Vista territorial ampliada. Planificado para la semana 11:</p>
-    <ul>
-      <li>Mapa por región con selector de indicador (mortalidad, peso del CUP, alta por oncología, estadía).</li>
-      <li>Gráfico de embudo de la mortalidad por Servicio de Salud.</li>
-      <li>Filtro por hospital (pendiente: nombres de establecimientos del DEIS).</li>
-    </ul>
+  <div class="bloque tono-territorio primero">
+    <div class="cabeza-seccion">
+      <div>
+        <span class="ceja">Territorio</span>
+        <h2 class="titulo-seccion" id="t-titulo"></h2>
+        <p class="bajada" id="t-bajada"></p>
+      </div>
+      <div class="controles-territorio">
+        <div class="vista" role="group" aria-label="Zona">
+          <span class="etiqueta">Zona</span>
+          <div class="botones-vista" id="t-zonas">
+            <button class="boton-vista" data-zona="">Chile</button>
+            <button class="boton-vista" data-zona="norte">Norte</button>
+            <button class="boton-vista" data-zona="centro">Centro</button>
+            <button class="boton-vista" data-zona="sur">Sur</button>
+          </div>
+        </div>
+        <div class="vista" role="group" aria-label="Colorear el mapa por">
+          <span class="etiqueta">Indicador</span>
+          <div class="botones-vista" id="t-indicador">
+            <button class="boton-vista" data-indicador="mortalidad">Mortalidad</button>
+            <button class="boton-vista" data-indicador="oncologia">Oncología</button>
+            <button class="boton-vista" data-indicador="estancia">Estancia</button>
+            <button class="boton-vista" data-indicador="egresos">Egresos</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="aviso-periodo" id="t-aviso" hidden>
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16.5h.01"/></svg>
+      <span></span>
+      <button type="button" class="boton-vista" id="t-ver-todo">Ver 2019–2025</button>
+    </div>
+    <div class="fila-territorio-t">
+      <div class="tarjeta panel panel-mapa">
+        <h2><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg><span class="con-ayuda" data-ayuda="territorio">Mapa por región</span></h2>
+        <p class="nota" id="t-nota-mapa"></p>
+        <div class="mapa mapa-grande" id="mapa-t"></div>
+        <div class="leyenda-mapa" id="leyenda-mapa-t"></div>
+      </div>
+      <div class="columna-territorio">
+        <div class="fila-kpi" id="t-kpi"></div>
+        <div class="tarjeta panel tono-territorio">
+          <div class="cabeza-panel">
+            <h2><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 16h4"/><path d="M7 12h9"/><path d="M7 8h6"/></svg><span class="con-ayuda" data-ayuda="regiones"><span id="t-graf-titulo">Mortalidad por región</span></span></h2>
+            <div class="botones-vista" id="t-orden" role="group" aria-label="Orden de las regiones">
+              <button class="boton-vista" data-orden="geo">Norte a sur</button>
+              <button class="boton-vista" data-orden="valor">Mayor a menor</button>
+            </div>
+          </div>
+          <p class="nota" id="t-nota-mort"></p>
+          <p class="hallazgo" id="t-hallazgo"></p>
+          <div class="caja-grafico alto-t-mort"><canvas id="g-t-mort"></canvas></div>
+        </div>
+        <div class="tarjeta panel">
+          <h2><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg><span class="con-ayuda" data-ayuda="tDetalle">Detalle por región</span></h2>
+          <div class="caja-tabla"><table class="tabla tabla-regiones" id="t-tabla"></table></div>
+          <p class="nota pie-tabla">Clic en una zona o región para filtrar. En gris: menos de 30 egresos (cifra poco estable). Región del hospital, no del domicilio.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -302,7 +403,7 @@
     <div class="columna-descargas">
       <div class="tarjeta panel">
         <h2><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="7"/><rect x="13" y="6" width="3" height="11"/></svg>Resumen por grupo (CSV)</h2>
-        <p class="nota">La tabla "Comparación con metastásicos": egresos, variación, mortalidad, estancia, severidad y peso GRD de cada grupo.</p>
+        <p class="nota">La tabla "Comparación con metastásicos": egresos, diferencia porcentual, mortalidad, estancia, severidad y peso GRD de cada grupo.</p>
         <button class="boton-descarga" id="descargar-resumen">
           <svg viewBox="0 0 24 24"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>Descargar resumen (CSV)</button>
       </div>
@@ -321,24 +422,40 @@
     <h2>Metodología</h2>
     <h3>Fuente</h3>
     <p>Bases públicas de egresos hospitalarios GRD de FONASA, años 2019 a 2025 (hospitales públicos). Cada registro es una hospitalización (egreso).</p>
+    <h3>Restricción de datos (0–18 años)</h3>
+    <ul>
+      <li>El estudio se restringe a adultos: se excluyen los egresos de pacientes de 0 a 17 años y quedan los de 18 años o más. No es una limpieza de errores: es una decisión de alcance.</li>
+      <li>En 2025 la base no trae la fecha de nacimiento, solo tramos de 5 años: la edad es el punto medio del tramo y el tramo de 15 a 19 años se excluye completo.</li>
+      <li>Las variables clave tienen menos de 0,02 % de datos faltantes. Las estadías muy largas se mantienen; por eso se usa la mediana.</li>
+    </ul>
     <h3>Grupos</h3>
     <ul>
       <li><b>CUP:</b> egresos con el código C80.0 (tumor maligno de sitio primario desconocido) en cualquiera de los 35 diagnósticos.</li>
       <li><b>Metastásicos:</b> pulmón (C34), colorrectal (C18–C20), mama (C50), próstata (C61) y gástrico (C16), solo si además tienen un código de metástasis (C77–C79).</li>
       <li><b>C80.9:</b> se usa solo como análisis de sensibilidad (filtro "C80.0 + C80.9").</li>
-      <li>Solo pacientes de 18 años o más. En 2025 la edad es el punto medio del tramo de 5 años.</li>
     </ul>
     <h3>Indicadores</h3>
     <ul>
+      <li><b>Egresos:</b> hospitalizaciones que terminan en el período (alta o muerte). Un paciente hospitalizado dos veces suma dos egresos.</li>
+      <li><b>Pacientes únicos:</b> personas distintas detrás de esos egresos, contadas por su ID cifrado en todo el período elegido. El total de un rango no es la suma de cada año: <span id="met-pacientes"></span></li>
       <li><b>Mortalidad:</b> egresos con condición de alta "fallecido" de cada 100.</li>
       <li><b>Estancia:</b> días entre el ingreso y el alta; se usa la mediana.</li>
-      <li><b>Peso GRD:</b> consumo relativo de recursos de la hospitalización.</li>
+      <li><b>Peso GRD:</b> consumo relativo de recursos de la hospitalización (1 = hospitalización promedio).</li>
+      <li><b>Diferencia porcentual (Dif. %):</b> (valor del período − valor del período anterior del mismo largo) ÷ valor del período anterior × 100. En la mortalidad la diferencia se da en puntos porcentuales.</li>
     </ul>
     <h3>Comorbilidades</h3>
     <ul>
+      <li><b>Definición:</b> una comorbilidad es una enfermedad crónica que el paciente tiene además del cáncer y que no es el motivo de la hospitalización. El cáncer y sus metástasis no cuentan como comorbilidad.</li>
       <li>Se buscan en los diagnósticos 2 a 35 (el diagnóstico 1 es el motivo de la hospitalización, no un antecedente).</li>
       <li><b>Comorbilidades frecuentes:</b> hipertensión (I10–I15), diabetes (E10–E14), hipotiroidismo (E03), enfermedad renal crónica (N18), EPOC (J43–J44), cardiopatía isquémica (I20–I25), insuficiencia cardíaca (I50), fibrilación auricular (I48), obesidad (E66) y hepatopatía crónica (K70, K73, K74).</li>
       <li><b>Índice de Charlson:</b> códigos CIE-10 de Quan et al. (2005), con sus pesos de 1 a 6 puntos, sin los componentes de cáncer y metástasis porque todos los pacientes del estudio los tienen. Si hay diabetes con complicaciones no se suma la simple, y lo mismo con la hepatopatía.</li>
+    </ul>
+    <h3>Territorio: norte, centro y sur</h3>
+    <ul>
+      <li><b>Norte:</b> Arica y Parinacota, Tarapacá, Antofagasta, Atacama y Coquimbo.</li>
+      <li><b>Centro:</b> Valparaíso, Metropolitana, O'Higgins y Maule.</li>
+      <li><b>Sur:</b> Ñuble, Biobío, La Araucanía, Los Ríos, Los Lagos, Aysén y Magallanes.</li>
+      <li>La zona se asigna por la región del hospital donde ocurrió el egreso, no por el domicilio del paciente.</li>
     </ul>
     <h3>Modelo de estadía (pestaña Análisis)</h3>
     <ul>
@@ -353,7 +470,7 @@
       <li>La región y el Servicio de Salud son los del hospital según el DEIS (desde su código), no los del domicilio del paciente. La columna SERVICIO_SALUD de la base no coincide con el hospital en cerca del 5 % de los egresos, por eso no se usa; esto mueve el 1 % de los egresos de región respecto del notebook.</li>
       <li>Hospital: la base trae solo el código del establecimiento; el nombre sale del listado oficial del DEIS y se corroboró con otras dos fuentes del MINSAL (detalle en BD/referencias). El código 107101 corresponde al Hospital San Martín de Quillota hasta octubre de 2022 y luego al Biprovincial Quillota-Petorca.</li>
       <li>Las comorbilidades solo cuentan si quedaron codificadas en el egreso: puede haber subregistro.</li>
-      <li>El ID del paciente cambia entre 2020 y 2021: los pacientes únicos se cuentan dentro de cada año (en un rango que cruce 2020–2021 un mismo paciente puede contarse dos veces).</li>
+      <li>El ID del paciente cambia entre 2020 y 2021: en un rango que cruce ese corte, un mismo paciente puede contarse dos veces.</li>
     </ul>
   </div>
 </section>
@@ -373,9 +490,10 @@
   <button id="descargar" class="boton-descarga">
     <svg viewBox="0 0 24 24"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>Descargar tabla (CSV)</button>
 </footer>
-<p class="creditos">v0.2 | Proyecto Análisis de Datos e Inferencia Estadística UDD 2026-2 | Bastián Campos, Maximiliano Mella, Agustín Tapia</p>
+<p class="creditos">v0.3 | Proyecto Análisis de Datos e Inferencia Estadística UDD 2026-2 | Bastián Campos, Renato Infante, Maximiliano Mella, Agustín Tapia</p>
 
 <div id="tooltip-mapa" class="tooltip"></div>
+<div id="tooltip-ayuda" class="tooltip tooltip-ayuda" role="tooltip"></div>
 
 <script src="lib/chart.umd.min.js"></script>
 <script src="lib/html2canvas.min.js"></script>

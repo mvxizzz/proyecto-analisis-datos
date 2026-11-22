@@ -165,6 +165,8 @@ def main():
         'comorb': pd.Series(comorb, index=df.index),
         'charlson': charlson.astype(int),
         'paciente': df['CIP_ENCRIPTADO'].fillna('sin_id').map(pacientes),
+        # 1 si oncología da el alta (misma regla que el notebook, celda de variables derivadas: ESPECIALIDAD_MEDICA)
+        'onco': df['ESPECIALIDAD_MEDICA'].fillna('').str.contains('ONCOLOG').astype(int),
     }
     datos = {
         'generado': pd.Timestamp.now().strftime('%Y-%m-%d'),
