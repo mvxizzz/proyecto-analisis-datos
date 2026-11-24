@@ -21,9 +21,9 @@ Doble clic en `index.html`. Funciona sin internet: la librería de gráficos y l
 - **Alto contraste (v0.2):** botón en el encabezado. Pasa la página a fondo negro con texto y bordes blancos, y aclara los colores de los gráficos y del mapa (en el mapa, más claro = más egresos); la preferencia queda guardada en el navegador y, si no hay una guardada, sigue la del sistema.
 - **Pestaña Descargas:** egresos filtrados (CSV, ahora con comorbilidades e índice de Charlson), resumen por grupo (CSV) y captura del dashboard en PDF.
 
-## Pendiente
-- En Comparaciones, la mortalidad con margen de error y la ajustada (regresión logística); en Análisis, la trayectoria del paciente y el diagnóstico principal (semana 11).
-- Revisar el resto de la vista en celular (ya no hay desplazamiento horizontal a 375 px).
+## Trabajo futuro
+- En Comparaciones, la mortalidad con margen de error y la ajustada (regresión logística); en Análisis, la trayectoria del paciente y el diagnóstico principal.
+- Mejorar la vista en celular (ya no hay desplazamiento horizontal a 375 px).
 
 ## Archivos
 | Archivo | Qué es |
